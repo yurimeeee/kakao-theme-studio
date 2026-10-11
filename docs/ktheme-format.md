@@ -8,7 +8,7 @@
 
 | 등급 | 뜻 |
 |---|---|
-| **참고 파일** | 첨부된 참고 테마(`TalkFile_COL_치이카와.ktheme.ktheme`)에서 직접 확인한 사실 |
+| **참고 파일** | 첨부된 참고 테마에서 직접 확인한 사실. 참고 1: `TalkFile_COL_치이카와.ktheme.ktheme`(주 근거). 참고 2: 최신 하단 탭 키가 들어 있는 다른 개인 제작 테마(§6에서만 사용) |
 | **추정** | 참고 파일에 답이 없어서 정한 우리 쪽 선택. 기기 검증 필요 |
 | **기기 검증** | 실제 iPhone 카카오톡에서 확인한 사실 — **현재 0건** |
 
@@ -71,7 +71,7 @@ ManifestStyle {
 | 상단 글자 | `HeaderStyle-Main -ios-text-color` | — | — | 있음 | 참고 파일 |
 | 입력창 | `InputBarStyle-Chat` 배경·전송 버튼 배경/전경·기타 버튼 | — | — | 있음 | 참고 파일 |
 | 기본 프로필 | `DefaultProfileStyle -ios-profile-images` | `profileImg01` | 100×100 | @3x 300×300만 있음 | 참고 파일 |
-| 탭 아이콘 | `TabBarStyle-Main -ios-{friends,chats,more}-{normal,selected}-icon-image` | `maintabIco{Friends,Chats,More}[Selected]` | 40×40 | @3x 120×120, @2x 76×76(38pt) | 참고 파일 |
+| 탭 아이콘 | `TabBarStyle-Main -ios-{friends,chats,now,openchats,shopping,more}-{normal,selected}-icon-image` | `maintabIco{Friends,Chats,Now,Shopping,More}[Selected]` | 40×40 | @3x 120×120, @2x 76×76(38pt) | 참고 파일 (키: 참고 1·2, 파일 이름·크기: 참고 1) |
 | 탭 바 배경 | `TabBarStyle-Main background-color`, `-ios-background-image` | `maintabBgImage` | 470×49 | @2x 940×98, @3x 1410×147, 주석 "top-center-crop" | 참고 파일 |
 | 암호 배경 | `BackgroundStyle-Passcode` | `passcodeBgImage` | 400×400 | @3x 1200×1200만 있음 | 참고 파일 (화면 배치 방식은 미확인) |
 | 암호 제목 글자 | `LabelStyle-PasscodeTitle` | — | — | 있음 | 참고 파일 |
@@ -127,13 +127,38 @@ MessageCellStyle-Send {
 
 ## 6. 하단 탭 — 추측 금지
 
+### 참고 1
+
 참고 CSS `TabBarStyle-Main`에는 `friends`, `chats`, `find`(주석: 글로벌), `browse`(채널), `piccoma`(만화, 일본), `game`, `more`가 선언되어 있습니다. 그러나:
 
 - `game`은 CSS에만 있고 이미지 파일이 없습니다.
 - `maintabIcoShopping*`, `maintabIcoView*` 이미지는 있으나 CSS에서 참조하지 않습니다.
 - 일부 탭 이미지는 다른 탭 파일과 바이트 크기가 같아 그림을 재사용한 것으로 보입니다(예: `maintabIcoBrowse@3x`와 `maintabIcoView@3x` 9918바이트, `maintabIcoFriends@3x`와 `maintabIcoPiccoma@3x` 8482바이트). 탭 키가 실제 어떤 화면에 대응하는지 이 파일만으로는 판단할 수 없습니다.
 
-최신 카카오톡 하단 탭 구성과 위 키의 대응은 확인할 수 없으므로, 에디터는 **CSS 선언과 이미지가 모두 있고 의미가 분명한 친구·채팅·더보기 3개만** 편집 대상으로 둡니다. 사용자가 이미지를 올린 탭만 CSS에 기록하고, 나머지 탭은 앱 기본 아이콘을 그대로 둡니다. 다른 탭은 미리보기에서 회색 일반 아이콘으로만 그립니다.
+### 참고 2 (2026-10-11 추가)
+
+다른 개인 제작 테마의 `TabBarStyle-Main`에는 다음 키가 주석과 함께 선언되어 있고, 모두 실제 이미지를 참조합니다(이미지·작성자 정보는 저장소에 포함하지 않음).
+
+| 키 | 주석 | 비고 |
+|---|---|---|
+| `friends`, `chats`, `more` | 친구탭 / 채팅탭 / 더보기탭 | 참고 1과 같음 |
+| `now` | 지금 | 오픈채팅 자리의 현행 탭 |
+| `openchats` | 오픈채팅탭 (하위호환) | `now`와 **같은 이미지**를 참조 |
+| `shopping` | 쇼핑탭 | |
+| `piccoma` | 만화탭 (일본) | |
+| `call` | 콜탭 | |
+
+참고 2에는 `find`·`browse`·`game`이 없습니다. 파일 이름은 자유 형식(`mt1.png` 등)이고 배율은 @3x만, 탭 아이콘은 115×115px입니다.
+
+### 생성 규칙
+
+에디터는 **친구·채팅·지금(오픈채팅)·쇼핑·더보기 5개**를 편집 대상으로 둡니다(현행 하단 탭 순서).
+
+- "지금(오픈채팅)" 탭 이미지는 참고 2와 같이 `now`와 `openchats` **두 키에 같은 파일**로 기록합니다. 구버전 앱의 오픈채팅 탭과 현행 지금 탭에 모두 적용되도록 하기 위함입니다.
+- 쇼핑 탭은 `shopping` 키로 기록합니다.
+- 파일 이름은 `maintabIcoNow[Selected]`, `maintabIcoShopping[Selected]` 형식을 씁니다. 크기는 다른 탭과 같은 40pt입니다.
+- `call`(콜탭)과 `piccoma`(일본 전용)는 국내 현행 하단 탭에서 의미가 확인되지 않아 제외했습니다.
+- 사용자가 이미지를 올린 탭만 CSS에 기록하고, 나머지 탭은 앱 기본 아이콘을 그대로 둡니다.
 
 ## 7. 사용자 이미지 처리
 
@@ -167,7 +192,7 @@ MessageCellStyle-Send {
 | D5 | 이미지 말풍선 늘림 기준점 | 대기 | |
 | D6 | 기본 프로필(사진 없는 친구만 바뀌는지) | 대기 | |
 | D7 | 암호 화면 배경·표시·키패드 눌림 (생성 표시 48pt 크기 적절성) | 대기 | |
-| D8 | 친구·채팅·더보기 탭 아이콘, 나머지 탭 기본 유지 | 대기 | |
+| D8 | 친구·채팅·지금(오픈채팅)·쇼핑·더보기 탭 아이콘, 올리지 않은 탭 기본 유지 | 대기 | |
 | D9 | `theme-url` 빈 값 허용 | 대기 | |
 | D10 | 같은 theme-id로 다시 내보낸 파일 설치 시 덮어쓰기/중복 | 대기 | |
 | D11 | 색상만 지정 시 `background-color` 단독 동작 여부 (현재는 단색 PNG를 함께 넣음) | 대기 | |
