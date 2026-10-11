@@ -1,0 +1,162 @@
+import JSZip from 'jszip'
+import { describe, expect, it } from 'vitest'
+import { createDefaultConfig } from '@/domain/theme/defaults'
+import type { ThemeConfig } from '@/domain/theme/types'
+import { FakeRasterizer, fakePng } from '@/test/fakeRasterizer'
+import { generatedBubbleGeometry, imageBubbleGeometry } from './bubbleGeometry'
+import { buildThemePackage, ExportError, type ExportSnapshot } from './buildPackage'
+import { cssString, parseThemeCss, referencedImages } from './css'
+import { createKthemeArchive, toKthemeFileName } from './exportTheme'
+import { validatePackage } from './validate'
+
+function snapshot(config: ThemeConfig = createDefaultConfig(), assets: [string, Blob][] = []): ExportSnapshot {
+  return { name: '나의 테마', exportThemeId: 'KTS_abcdefghijklmnop', revision: 3, config, assets: new Map(assets) }
+}
+
+async function unzip(blob: Blob) {
+  return JSZip.loadAsync(new Uint8Array(await blob.arrayBuffer()))
+}
+
+describe('createKthemeArchive', () => {
+  it('produces a validated archive for a color-only theme', async () => {
+    const archive = await createKthemeArchive(snapshot(), new FakeRasterizer())
+    expect(archive.fileName).toBe('나의 테마.ktheme')
+    const zip = await unzip(archive.blob)
+    const names = Object.keys(zip.files)
+    expect(names[0]).toBe('KakaoTalkTheme.css')
+    expect(names).toContain('Images/')
+    expect(names.some((n) => n.includes('__MACOSX') || n.includes('.DS_Store'))).toBe(false)
+
+    const raw = await zip.file('KakaoTalkTheme.css')!.async('uint8array')
+    expect([...raw.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]) // UTF-8 BOM like the reference
+    const css = new TextDecoder().decode(raw)
+    const manifest = parseThemeCss(css).get('ManifestStyle')!
+    expect(manifest.get('-kakaotalk-theme-name')).toBe("'나의 테마'")
+    expect(manifest.get('-kakaotalk-theme-id')).toBe("'KTS_abcdefghijklmnop'")
+    expect(manifest.get('-kakaotalk-theme-version')).toBe("'1.0.3'")
+
+    // Every referenced image exists at @2x and @3x.
+    for (const base of referencedImages(css)) {
+      expect(zip.file(`Images/${base}@2x.png`), base).not.toBeNull()
+      expect(zip.file(`Images/${base}@3x.png`), base).not.toBeNull()
+    }
+    // Color-only themes still get generated bubbles, profile and passcode resources.
+    for (const base of ['chatroomBubbleSend01', 'chatroomBubbleReceive02Selected', 'profileImg01', 'passcodeImgCode04Selected', 'passcodeKeypadPressed']) {
+      expect(referencedImages(css).has(base), base).toBe(true)
+    }
+    expect(zip.file('Images/commonIcoTheme.png')).not.toBeNull()
+    // No web CSS leaks into the theme file.
+    expect(css).not.toMatch(/border-radius/)
+    // Tabs without uploaded icons keep the app default (no guessed file names).
+    expect(css).not.toMatch(/-ios-(friends|chats|more)-normal-icon-image/)
+    expect(css).not.toMatch(/\{\s*\}/) // no empty blocks
+  })
+
+  it('maps uploaded images, tab icons and image bubbles with correct sizes and stretch', async () => {
+    const config = createDefaultConfig()
+    config.background.chatroom = { mode: 'image', color: '#000000', imageAssetId: 'ast_bg' }
+    config.bubbles.send = { ...config.bubbles.send, mode: 'image', imageAssetId: 'ast_bub', advanced: { ...config.bubbles.send.advanced, stretch: { x: 20, y: 15 } } }
+    config.tabs.mode = 'image'
+    config.tabs.icons.friends = { normal: 'ast_tab', selected: null }
+    const archive = await createKthemeArchive(
+      snapshot(config, [
+        ['ast_bg', fakePng(2000, 3000)],
+        ['ast_bub', fakePng(150, 120)],
+        ['ast_tab', fakePng(90, 90)],
+      ]),
+      new FakeRasterizer(),
+    )
+    const zip = await unzip(archive.blob)
+    const css = await zip.file('KakaoTalkTheme.css')!.async('string')
+    const send = parseThemeCss(css).get('MessageCellStyle-Send')!
+    expect(send.get('-ios-background-image')).toBe("'chatroomBubbleSend01.png' 20px 15px")
+    const tab = parseThemeCss(css).get('TabBarStyle-Main')!
+    expect(tab.get('-ios-friends-normal-icon-image')).toBe("'maintabIcoFriends.png'")
+    expect(tab.get('-ios-friends-selected-icon-image')).toBe("'maintabIcoFriendsSelected.png'")
+    expect(tab.has('-ios-chats-normal-icon-image')).toBe(false)
+  })
+
+  it('fails with missing-asset instead of exporting a broken reference', async () => {
+    const config = createDefaultConfig()
+    config.profile = { mode: 'image', imageAssetId: 'ast_gone' }
+    await expect(createKthemeArchive(snapshot(config), new FakeRasterizer())).rejects.toMatchObject({ code: 'missing-asset' })
+  })
+
+  it('fails with decode-failed for undecodable images', async () => {
+    const bad = fakePng(10, 10)
+    const raster = new FakeRasterizer()
+    raster.failDecode.add(bad)
+    const config = createDefaultConfig()
+    config.background.main = { mode: 'image', color: '#ffffff', imageAssetId: 'ast_bad' }
+    await expect(createKthemeArchive(snapshot(config, [['ast_bad', bad]]), raster)).rejects.toBeInstanceOf(ExportError)
+  })
+})
+
+describe('validatePackage', () => {
+  it('detects missing scale, orphan files, unsafe entries and bad manifest', async () => {
+    const pkg = await buildThemePackage(snapshot(), new FakeRasterizer())
+    const files = new Map(pkg.files)
+    files.delete('Images/profileImg01@2x.png')
+    files.set('Images/strayImage@3x.png', fakePng(3, 3))
+    files.set('__MACOSX/._KakaoTalkTheme.css', new Blob(['x']))
+    const codes = (await validatePackage(files)).map((i) => i.code)
+    expect(codes).toContain('missing-image')
+    expect(codes).toContain('orphan-image')
+    expect(codes).toContain('unsafe-path')
+
+    const noName = new Map(pkg.files)
+    noName.set('KakaoTalkTheme.css', new Blob([pkg.css.replace(/-kakaotalk-theme-id: '[^']*'/, "-kakaotalk-theme-id: ''")]))
+    expect((await validatePackage(noName)).map((i) => i.code)).toContain('missing-manifest-field')
+  })
+
+  it('detects @2x/@3x size mismatch', async () => {
+    const pkg = await buildThemePackage(snapshot(), new FakeRasterizer())
+    const files = new Map(pkg.files)
+    files.set('Images/profileImg01@2x.png', fakePng(10, 10))
+    expect((await validatePackage(files)).map((i) => i.code)).toContain('scale-mismatch')
+  })
+
+  it('accepts the generated package as-is', async () => {
+    const pkg = await buildThemePackage(snapshot(), new FakeRasterizer())
+    expect(await validatePackage(pkg.files)).toEqual([])
+  })
+})
+
+describe('bubble geometry', () => {
+  it('generated bubbles put the stretch point inside a symmetric cap', () => {
+    expect(generatedBubbleGeometry({ shape: 'rounded', radius: 16 })).toEqual({ widthPt: 33, heightPt: 33, radiusPt: 16, stretch: { x: 16, y: 16 } })
+    expect(generatedBubbleGeometry({ shape: 'square', radius: 16 }).radiusPt).toBe(0)
+    expect(generatedBubbleGeometry({ shape: 'capsule', radius: 2 }).radiusPt).toBe(17)
+  })
+
+  it('clamps a user stretch point inside the @3x image', () => {
+    expect(imageBubbleGeometry(150, 120, { x: 999, y: -5 }).stretch).toEqual({ x: 49, y: 0 })
+    expect(imageBubbleGeometry(150, 120, null).stretch).toEqual({ x: 25, y: 20 })
+  })
+})
+
+describe('names', () => {
+  it('sanitizes download names but keeps Korean', () => {
+    expect(toKthemeFileName('  봄/여름:테마*  ')).toBe('봄여름테마.ktheme')
+    expect(toKthemeFileName('...')).toBe('이름 없는 테마.ktheme')
+  })
+
+  it('escapes CSS string content', () => {
+    expect(cssString("it's */ \"bad\"\n테마")).toBe('its  bad테마')
+  })
+})
+
+describe('reference inventory guard', () => {
+  it('emits only selectors and properties observed in the reference archive', async () => {
+    const { REFERENCE_CSS_INVENTORY } = await import('./referenceInventory')
+    const config = createDefaultConfig()
+    config.tabs.mode = 'image'
+    config.tabs.barColor = '#eeeeee'
+    config.tabs.icons.friends = { normal: 'ast_t', selected: 'ast_t' }
+    const pkg = await buildThemePackage(snapshot(config, [['ast_t', fakePng(60, 60)]]), new FakeRasterizer())
+    for (const [selector, props] of parseThemeCss(pkg.css)) {
+      expect(REFERENCE_CSS_INVENTORY[selector], selector).toBeDefined()
+      for (const prop of props.keys()) expect(REFERENCE_CSS_INVENTORY[selector], `${selector} ${prop}`).toContain(prop)
+    }
+  })
+})
