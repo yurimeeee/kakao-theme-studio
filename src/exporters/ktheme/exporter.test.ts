@@ -76,6 +76,27 @@ describe('createKthemeArchive', () => {
     expect(tab.has('-ios-chats-normal-icon-image')).toBe(false)
   })
 
+  it('writes the 지금 tab to now + openchats and the shopping tab to shopping', async () => {
+    const config = createDefaultConfig()
+    config.tabs.mode = 'image'
+    config.tabs.icons.now = { normal: 'ast_now', selected: null }
+    config.tabs.icons.shopping = { normal: 'ast_shop', selected: 'ast_now' }
+    const archive = await createKthemeArchive(
+      snapshot(config, [['ast_now', fakePng(90, 90)], ['ast_shop', fakePng(90, 90)]]),
+      new FakeRasterizer(),
+    )
+    const zip = await unzip(archive.blob)
+    const tab = parseThemeCss(await zip.file('KakaoTalkTheme.css')!.async('string')).get('TabBarStyle-Main')!
+    expect(tab.get('-ios-now-normal-icon-image')).toBe("'maintabIcoNow.png'")
+    expect(tab.get('-ios-openchats-normal-icon-image')).toBe("'maintabIcoNow.png'")
+    expect(tab.get('-ios-openchats-selected-icon-image')).toBe("'maintabIcoNowSelected.png'")
+    expect(tab.get('-ios-shopping-selected-icon-image')).toBe("'maintabIcoShoppingSelected.png'")
+    expect(tab.has('-ios-friends-normal-icon-image')).toBe(false)
+    for (const base of ['maintabIcoNow', 'maintabIcoNowSelected', 'maintabIcoShopping', 'maintabIcoShoppingSelected']) {
+      expect(zip.file(`Images/${base}@3x.png`), base).not.toBeNull()
+    }
+  })
+
   it('fails with missing-asset instead of exporting a broken reference', async () => {
     const config = createDefaultConfig()
     config.profile = { mode: 'image', imageAssetId: 'ast_gone' }
@@ -152,7 +173,7 @@ describe('reference inventory guard', () => {
     const config = createDefaultConfig()
     config.tabs.mode = 'image'
     config.tabs.barColor = '#eeeeee'
-    config.tabs.icons.friends = { normal: 'ast_t', selected: 'ast_t' }
+    for (const k of ['friends', 'chats', 'now', 'shopping', 'more'] as const) config.tabs.icons[k] = { normal: 'ast_t', selected: 'ast_t' }
     const pkg = await buildThemePackage(snapshot(config, [['ast_t', fakePng(60, 60)]]), new FakeRasterizer())
     for (const [selector, props] of parseThemeCss(pkg.css)) {
       expect(REFERENCE_CSS_INVENTORY[selector], selector).toBeDefined()

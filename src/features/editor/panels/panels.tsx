@@ -141,7 +141,7 @@ function ProfilePanel() {
   )
 }
 
-const TAB_LABELS: Record<TabKey, string> = { friends: '친구 탭', chats: '채팅 탭', more: '더보기 탭' }
+const TAB_LABELS: Record<TabKey, string> = { friends: '친구 탭', chats: '채팅 탭', now: '지금(오픈채팅) 탭', shopping: '쇼핑 탭', more: '더보기 탭' }
 
 function TabsPanel() {
   const { tabs } = useConfig()
@@ -186,7 +186,7 @@ function TabsPanel() {
         />
       </FieldGroup>
       <Notice>
-        참고 테마 파일에서 확인된 친구·채팅·더보기 탭만 바꿀 수 있어요. 최신 카카오톡의 다른 탭은 확인되지 않아 기본 아이콘이 유지돼요.
+        지금 탭 이미지는 구버전 앱의 오픈채팅 탭에도 쓰이도록 함께 기록해요. 이미지를 올리지 않은 탭은 카카오톡 기본 아이콘이 유지돼요.
       </Notice>
     </div>
   )

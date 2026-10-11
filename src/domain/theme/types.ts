@@ -85,10 +85,10 @@ export interface ProfileSetting {
 }
 
 /**
- * Tabs that the reference archive both declares in CSS and ships images for.
- * See docs/ktheme-format.md — newer KakaoTalk tabs are intentionally absent.
+ * Editable tabs, in current KakaoTalk bottom-bar order. Each one has a CSS key observed
+ * in a reference archive (see docs/ktheme-format.md §6); unverified tabs stay out.
  */
-export const TAB_KEYS = ['friends', 'chats', 'more'] as const
+export const TAB_KEYS = ['friends', 'chats', 'now', 'shopping', 'more'] as const
 export type TabKey = (typeof TAB_KEYS)[number]
 
 export interface TabIconPair {

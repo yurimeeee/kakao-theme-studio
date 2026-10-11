@@ -138,7 +138,7 @@ export async function buildThemePackage(snapshot: ExportSnapshot, raster: Raster
       const selected = await decode(pair.selected)
       await emit(normalBase, RESOURCES.tabIcon.sizePt, (ctx, w, h) => drawContain(ctx, normal, w, h))
       await emit(selectedBase, RESOURCES.tabIcon.sizePt, (ctx, w, h) => drawContain(ctx, selected, w, h))
-      tabIcons.push({ cssKey: TAB_CSS_KEYS[key], normal: normalBase, selected: selectedBase })
+      for (const cssKey of TAB_CSS_KEYS[key]) tabIcons.push({ cssKey, normal: normalBase, selected: selectedBase })
     }
 
     // Passcode bullets (4 normal + 4 selected) and pressed key.

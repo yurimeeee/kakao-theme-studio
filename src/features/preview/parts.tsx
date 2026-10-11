@@ -59,16 +59,16 @@ function PhotoPlaceholder({ variant, size, radius }: { variant: 'a' | 'b' | 'c';
   )
 }
 
-const TAB_ORDER: { key: TabKey | 'now' | 'shop'; label: string; icon: typeof UserRound }[] = [
+const TAB_ORDER: { key: TabKey; label: string; icon: typeof UserRound }[] = [
   { key: 'friends', label: '친구', icon: UserRound },
   { key: 'chats', label: '채팅', icon: MessageCircle },
-  { key: 'now', label: '기타', icon: Compass },
-  { key: 'shop', label: '기타', icon: ShoppingBag },
+  { key: 'now', label: '지금', icon: Compass },
+  { key: 'shopping', label: '쇼핑', icon: ShoppingBag },
   { key: 'more', label: '더보기', icon: MoreHorizontal },
 ]
 
 function TabIcon({ theme, tab, active }: { theme: ResolvedTheme; tab: (typeof TAB_ORDER)[number]; active: boolean }) {
-  const pair = tab.key === 'now' || tab.key === 'shop' ? undefined : theme.tabs.icons[tab.key]
+  const pair = theme.tabs.icons[tab.key]
   const url = useAssetUrl(pair ? (active ? pair.selected : pair.normal) : null)
   const Icon = tab.icon
   if (url) return <img src={url} alt="" className="size-7 object-contain" />

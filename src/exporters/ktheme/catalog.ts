@@ -1,3 +1,5 @@
+import type { TabKey } from '@/domain/theme/types'
+
 /**
  * Resource catalog for the iOS .ktheme adapter.
  *
@@ -90,9 +92,19 @@ export const RESOURCES = {
   },
 } satisfies Record<string, ImageResourceSpec>
 
-/** Tab CSS keys observed in the reference TabBarStyle-Main block. */
-export const TAB_CSS_KEYS = { friends: 'friends', chats: 'chats', more: 'more' } as const
-export const TAB_FILE_KEYS = { friends: 'Friends', chats: 'Chats', more: 'More' } as const
+/**
+ * Tab CSS keys observed in reference TabBarStyle-Main blocks. The "지금" tab replaced the
+ * open chat tab; reference 2 writes the same images to `now` and to `openchats`
+ * (commented "오픈채팅탭 (하위호환)"), so both are emitted.
+ */
+export const TAB_CSS_KEYS = {
+  friends: ['friends'],
+  chats: ['chats'],
+  now: ['now', 'openchats'],
+  shopping: ['shopping'],
+  more: ['more'],
+} as const satisfies Record<TabKey, readonly string[]>
+export const TAB_FILE_KEYS = { friends: 'Friends', chats: 'Chats', now: 'Now', shopping: 'Shopping', more: 'More' } as const satisfies Record<TabKey, string>
 
 /** Capsule bubbles use this radius (pt): half of a one-line bubble height. */
 export const CAPSULE_RADIUS_PT = 17

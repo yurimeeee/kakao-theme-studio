@@ -1,11 +1,12 @@
 /**
- * Selector → property names observed in the reference archive's KakaoTalkTheme.css
+ * Selector → property names observed in the reference archives' KakaoTalkTheme.css
+ * (TabBarStyle-Main: union of reference 1 and reference 2)
  * (structure only; no values, images or author data). Used to guarantee the
  * serializer never invents properties. See docs/ktheme-format.md.
  */
 export const REFERENCE_CSS_INVENTORY: Record<string, readonly string[]> = {
   'ManifestStyle': ['-kakaotalk-theme-name', '-kakaotalk-theme-version', '-kakaotalk-theme-url', '-kakaotalk-author-name', '-kakaotalk-theme-id'],
-  'TabBarStyle-Main': ['background-color', '-ios-background-image', '-ios-friends-normal-icon-image', '-ios-friends-selected-icon-image', '-ios-chats-normal-icon-image', '-ios-chats-selected-icon-image', '-ios-find-normal-icon-image', '-ios-find-selected-icon-image', '-ios-browse-normal-icon-image', '-ios-browse-selected-icon-image', '-ios-piccoma-normal-icon-image', '-ios-piccoma-selected-icon-image', '-ios-game-normal-icon-image', '-ios-game-selected-icon-image', '-ios-more-normal-icon-image', '-ios-more-selected-icon-image'],
+  'TabBarStyle-Main': ['background-color', '-ios-background-image', '-ios-friends-normal-icon-image', '-ios-friends-selected-icon-image', '-ios-chats-normal-icon-image', '-ios-chats-selected-icon-image', '-ios-find-normal-icon-image', '-ios-find-selected-icon-image', '-ios-browse-normal-icon-image', '-ios-browse-selected-icon-image', '-ios-piccoma-normal-icon-image', '-ios-piccoma-selected-icon-image', '-ios-game-normal-icon-image', '-ios-game-selected-icon-image', '-ios-more-normal-icon-image', '-ios-more-selected-icon-image', '-ios-now-normal-icon-image', '-ios-now-selected-icon-image', '-ios-shopping-normal-icon-image', '-ios-shopping-selected-icon-image', '-ios-call-normal-icon-image', '-ios-call-selected-icon-image', '-ios-openchats-normal-icon-image', '-ios-openchats-selected-icon-image'],
   'HeaderStyle-Main': ['-ios-text-color', '-ios-tab-text-color', '-ios-tab-highlighted-text-color'],
   'MainViewStyle-Primary': ['background-color', '-ios-background-image', '-ios-text-color', '-ios-highlighted-text-color', '-ios-description-text-color', '-ios-description-highlighted-text-color', '-ios-paragraph-text-color', '-ios-paragraph-highlighted-text-color', '-ios-normal-background-color', '-ios-normal-background-alpha', '-ios-selected-background-color', '-ios-selected-background-alpha'],
   'MainViewStyle-Secondary': ['background-color'],

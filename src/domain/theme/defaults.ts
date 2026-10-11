@@ -58,6 +58,8 @@ export function createDefaultConfig(): ThemeConfig {
       icons: {
         friends: { normal: null, selected: null },
         chats: { normal: null, selected: null },
+        now: { normal: null, selected: null },
+        shopping: { normal: null, selected: null },
         more: { normal: null, selected: null },
       },
     },
