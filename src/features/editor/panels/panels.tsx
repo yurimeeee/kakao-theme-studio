@@ -269,9 +269,9 @@ export function ElementPanel({ element }: { element: ElementKey }) {
     case 'background':
       return <BackgroundPanel />
     case 'bubbleSend':
-      return <BubblePanel kind="send" />
+      return <BubblePanel key="send" kind="send" />
     case 'bubbleReceive':
-      return <BubblePanel kind="receive" />
+      return <BubblePanel key="receive" kind="receive" />
     case 'headerInput':
       return <HeaderInputPanel />
     case 'profile':

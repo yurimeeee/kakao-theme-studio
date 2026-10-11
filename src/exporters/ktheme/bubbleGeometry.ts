@@ -48,3 +48,106 @@ export function imageBubbleGeometry(
     stretch: { x: Math.min(Math.max(0, s.x), maxX), y: Math.min(Math.max(0, s.y), maxY) },
   }
 }
+
+export interface BubbleFit {
+  stretch: { x: number; y: number }
+  insets: { top: number; left: number; bottom: number; right: number }
+}
+
+/** Minimal RGBA pixel buffer (structurally compatible with `ImageData`). */
+export interface Pixels {
+  width: number
+  height: number
+  data: Uint8ClampedArray
+}
+
+const SAME_TOLERANCE = 3
+const EDGE_TOLERANCE = 8
+/** Space between the bubble body's inner edge and the text, in pt. */
+const TEXT_PAD = { v: 7, h: 6 }
+const INSET_MAX = 40
+
+/**
+ * Fit a decorated bubble image (@3x px): the stretch point goes in the middle of the
+ * longest band of identical rows/columns, so stretching never smears decorations or
+ * corners; text insets keep the text inside the body (below decorations hanging over
+ * the top edge). Returns null for images without such bands (e.g. photos).
+ */
+export function fitBubbleImage(px: Pixels): BubbleFit | null {
+  const { width: w, height: h, data } = px
+  const at = (x: number, y: number) => (y * w + x) * 4
+  const close = (a: number, b: number, tol: number) =>
+    Math.abs(data[a] - data[b]) <= tol &&
+    Math.abs(data[a + 1] - data[b + 1]) <= tol &&
+    Math.abs(data[a + 2] - data[b + 2]) <= tol &&
+    Math.abs(data[a + 3] - data[b + 3]) <= tol
+
+  const rowSame = (y: number) => {
+    for (let x = 0; x < w; x++) if (!close(at(x, y), at(x, y + 1), SAME_TOLERANCE)) return false
+    return true
+  }
+  const colSame = (x: number) => {
+    for (let y = 0; y < h; y++) if (!close(at(x, y), at(x + 1, y), SAME_TOLERANCE)) return false
+    return true
+  }
+  const rowOpaque = (y: number) => {
+    for (let x = 0; x < w; x++) if (data[at(x, y) + 3] > 0) return true
+    return false
+  }
+  const colOpaque = (x: number) => {
+    for (let y = 0; y < h; y++) if (data[at(x, y) + 3] > 0) return true
+    return false
+  }
+
+  /** Longest run [start, end] of lines where line i equals line i + 1 (ignoring empty margins). */
+  const longestBand = (count: number, same: (i: number) => boolean, opaque: (i: number) => boolean) => {
+    let best: [number, number] | null = null
+    let start = -1
+    for (let i = 0; i <= count - 1; i++) {
+      const ok = i < count - 1 && same(i) && opaque(i)
+      if (ok && start < 0) start = i
+      if (!ok && start >= 0) {
+        if (!best || i - start > best[1] - best[0]) best = [start, i] // lines start..i are identical
+        start = -1
+      }
+    }
+    return best
+  }
+
+  const rows = longestBand(h, rowSame, rowOpaque)
+  const cols = longestBand(w, colSame, colOpaque)
+  // The stretched pt slot spans 3 px; the band must hold it.
+  if (!rows || !cols || rows[1] - rows[0] < 3 || cols[1] - cols[0] < 3) return null
+
+  const slot = (band: [number, number]) => {
+    const pt = Math.round((band[0] + band[1]) / 2 / 3)
+    return Math.min(Math.max(pt, Math.ceil(band[0] / 3)), Math.floor((band[1] - 2) / 3))
+  }
+  const sx = slot(cols)
+  const sy = slot(rows)
+  const cx = sx * 3 + 1
+  const cy = sy * 3 + 1
+  const fill = at(cx, cy)
+  if (data[fill + 3] === 0) return null
+
+  let left = cx
+  while (left > 0 && close(at(left - 1, cy), fill, EDGE_TOLERANCE)) left--
+  let right = cx
+  while (right < w - 1 && close(at(right + 1, cy), fill, EDGE_TOLERANCE)) right++
+  let top = cy
+  while (top > 0 && close(at(cx, top - 1), fill, EDGE_TOLERANCE)) top--
+  let bottom = cy
+  while (bottom < h - 1 && close(at(cx, bottom + 1), fill, EDGE_TOLERANCE)) bottom++
+
+  const pt = (v: number) => Math.min(INSET_MAX, Math.max(0, Math.round(v / 3)))
+  return {
+    stretch: { x: sx, y: sy },
+    insets: {
+      // Decorations overlapping the body's top edge end where the identical rows begin.
+      top: pt(Math.max(top + TEXT_PAD.v * 3, rows[0])),
+      left: pt(left + TEXT_PAD.h * 3),
+      bottom: pt(h - 1 - bottom + TEXT_PAD.v * 3),
+      right: pt(w - 1 - right + TEXT_PAD.h * 3),
+    },
+  }
+}

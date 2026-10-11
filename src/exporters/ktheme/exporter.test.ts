@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { createDefaultConfig } from '@/domain/theme/defaults'
 import type { ThemeConfig } from '@/domain/theme/types'
 import { FakeRasterizer, fakePng } from '@/test/fakeRasterizer'
-import { generatedBubbleGeometry, imageBubbleGeometry } from './bubbleGeometry'
+import { fitBubbleImage, generatedBubbleGeometry, imageBubbleGeometry, type Pixels } from './bubbleGeometry'
 import { buildThemePackage, ExportError, type ExportSnapshot } from './buildPackage'
 import { cssString, parseThemeCss, referencedImages } from './css'
 import { createKthemeArchive, toKthemeFileName } from './exportTheme'
@@ -158,5 +158,39 @@ describe('reference inventory guard', () => {
       expect(REFERENCE_CSS_INVENTORY[selector], selector).toBeDefined()
       for (const prop of props.keys()) expect(REFERENCE_CSS_INVENTORY[selector], `${selector} ${prop}`).toContain(prop)
     }
+  })
+})
+
+describe('fitBubbleImage', () => {
+  /** @3x bubble: transparent margin, 2px border, flat fill, a decoration hanging over the top edge. */
+  function decorated(): Pixels {
+    const w = 150, h = 120
+    const data = new Uint8ClampedArray(w * h * 4)
+    const put = (x: number, y: number, c: [number, number, number, number]) => data.set(c, (y * w + x) * 4)
+    for (let y = 30; y < 114; y++)
+      for (let x = 6; x < 144; x++) {
+        const edge = y < 32 || y > 111 || x < 8 || x > 141
+        put(x, y, edge ? [80, 50, 40, 255] : [248, 213, 218, 255])
+      }
+    for (let y = 10; y < 45; y++) for (let x = 100; x < 130; x++) put(x, y, [255, 255, 255, 255]) // decoration
+    return { width: w, height: h, data }
+  }
+
+  it('puts the stretch point in a flat band and keeps text below decorations', () => {
+    const fit = fitBubbleImage(decorated())!
+    expect(fit).not.toBeNull()
+    // Stretch column avoids the decoration (x 100..129 px → 33..43 pt), stretch row is below it.
+    expect(fit.stretch.x * 3 + 2).toBeLessThan(100)
+    expect(fit.stretch.y * 3).toBeGreaterThanOrEqual(45)
+    // Body inner edges: top 32px, left 8px, bottom gap 8px, right gap 8px; text starts below the decoration.
+    expect(fit.insets.top * 3).toBeGreaterThanOrEqual(45)
+    expect(fit.insets).toMatchObject({ left: 9, bottom: 10, right: 9 })
+  })
+
+  it('returns null when nothing can be stretched safely', () => {
+    const w = 20, h = 20
+    const data = new Uint8ClampedArray(w * h * 4)
+    for (let i = 0; i < w * h; i++) data.set([(i * 37) % 256, (i * 11) % 256, i % 256, 255], i * 4)
+    expect(fitBubbleImage({ width: w, height: h, data })).toBeNull()
   })
 })

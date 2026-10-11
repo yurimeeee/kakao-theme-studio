@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { Button } from '@/components/ui/Button'
 import { ColorField } from '@/components/ui/ColorField'
 import { NEUTRAL_SWATCHES } from '@/components/ui/swatches'
 import { FieldGroup, Notice } from '@/components/ui/Section'
@@ -5,8 +7,9 @@ import { Segmented } from '@/components/ui/Segmented'
 import { Slider } from '@/components/ui/Slider'
 import { BUBBLE_RADIUS_MAX, BUBBLE_RADIUS_MIN } from '@/domain/theme/defaults'
 import { resolveTheme } from '@/domain/theme/resolve'
-import type { BubbleSetting, BubbleShape, EdgeInsets } from '@/domain/theme/types'
+import type { AssetId, BubbleSetting, BubbleShape, EdgeInsets } from '@/domain/theme/types'
 import { imageBubbleGeometry } from '@/exporters/ktheme/bubbleGeometry'
+import { analyzeBubbleImage } from '../bubbleFit'
 import { ImageField } from '../ImageField'
 import { useEditor } from '../store'
 import { modeOptions } from './modes'
@@ -30,6 +33,22 @@ export function BubblePanel({ kind }: { kind: 'send' | 'receive' }) {
   const setAdvanced = (patch: Partial<BubbleSetting['advanced']>) => update((c) => Object.assign(c.bubbles[kind].advanced, patch))
   const isImage = bubble.mode === 'image'
   const geo = record ? imageBubbleGeometry(record.width, record.height, bubble.advanced.stretch) : null
+  const [fit, setFit] = useState<'idle' | 'busy' | 'fitted' | 'failed'>('idle')
+
+  /** Analyze the image (locally) and set stretch point + text insets in one edit. */
+  const applyFit = async (imageAssetId: AssetId, patch: Partial<BubbleSetting> = {}) => {
+    setFit('busy')
+    const blob = useEditor.getState().assets.get(imageAssetId)?.blob
+    const result = blob ? await analyzeBubbleImage(blob) : null
+    update((c) => {
+      const b = c.bubbles[kind]
+      Object.assign(b, patch)
+      if (b.imageAssetId !== imageAssetId) return
+      b.advanced.stretch = result ? { ...result.stretch } : null
+      if (result) b.advanced.insets = { ...result.insets }
+    })
+    setFit(result ? 'fitted' : 'failed')
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -45,9 +64,20 @@ export function BubblePanel({ kind }: { kind: 'send' | 'receive' }) {
           <ImageField
             label="말풍선 이미지"
             assetId={bubble.imageAssetId}
-            onChange={(imageAssetId) => set({ imageAssetId })}
-            hint="3배(@3x) 크기 기준으로 사용해요. 늘림 기준점의 한 줄이 늘어나요."
+            onChange={(imageAssetId) => (imageAssetId ? void applyFit(imageAssetId, { imageAssetId }) : set({ imageAssetId }))}
+            hint="3배(@3x) 크기 기준으로 사용해요. 올리면 장식을 피해 텍스트 여백과 늘림 기준점을 자동으로 맞춰요."
           />
+        )}
+        {isImage && bubble.imageAssetId && (
+          <div className="flex flex-col gap-2">
+            <Button variant="soft" busy={fit === 'busy'} onClick={() => void applyFit(bubble.imageAssetId!)}>
+              이미지에 맞추기
+            </Button>
+            <p className="text-[13px] text-sub" role="status">
+              {fit === 'fitted' && '이미지에 맞춰 텍스트 여백과 늘림 기준점을 정했어요. 고급 설정에서 조절할 수 있어요.'}
+              {fit === 'failed' && '자동으로 맞추지 못했어요. 고급 설정에서 여백과 늘림 기준점을 직접 조절해 주세요.'}
+            </p>
+          </div>
         )}
         <ColorField
           label="글자색"
