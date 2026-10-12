@@ -9,10 +9,19 @@ import { createHash } from 'node:crypto'
 export const SHARE_ID_PATTERN = /^[A-Za-z0-9]{22}$/
 export const MARK_TTL_MS = 2 * 24 * 60 * 60 * 1000
 
+/**
+ * Client IP for de-duplication. Google's front end *appends* the address it accepted the
+ * connection from to X-Forwarded-For, so only the rightmost entry is trustworthy; anything
+ * to its left is whatever the client sent and could be rotated to inflate downloadCount.
+ * (Assumes no extra load balancer in front of the function; one would add another hop.)
+ */
 export function clientIp(headers: Record<string, string | string[] | undefined>, fallback: string | undefined): string {
   const fwd = headers['x-forwarded-for']
-  const first = (Array.isArray(fwd) ? fwd[0] : fwd)?.split(',')[0]?.trim()
-  return first || fallback || 'unknown'
+  const entries = (Array.isArray(fwd) ? fwd.join(',') : (fwd ?? ''))
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  return entries.at(-1) || fallback || 'unknown'
 }
 
 export function downloadActor(uid: string | null, ip: string, salt: string): string {

@@ -54,6 +54,11 @@ test('로그인·편집만으로는 업로드하지 않고, 저장할 때만 클
 test('공유: 링크 공개 → 비로그인 조회·다운로드, 공개 → 갤러리, 비공개 → 접근 차단', async ({ page, browser }) => {
   await freshApp(page)
   await signUp(page, newAccount('공유자'))
+  // An image bubble: the shared preview must size it from the published manifest, not the editor.
+  await page.getByRole('button', { name: '받는 말풍선' }).click()
+  await page.getByRole('radio', { name: '이미지' }).click()
+  await page.getByLabel('말풍선 이미지 파일 선택').setInputFiles({ name: 'bubble.png', mimeType: 'image/png', buffer: solidPng(90, 75, [255, 255, 255, 255]) })
+  await expect(page.getByText('bubble.png')).toBeVisible()
   const tag = uniqueTag()
   const name = `공유 ${tag}`
   await saveTheme(page, name)
@@ -75,6 +80,12 @@ test('공유: 링크 공개 → 비로그인 조회·다운로드, 공개 → �
   await visitor.goto(url)
   await expect(visitor.getByTestId('share-name')).toHaveText(name)
   await expect(visitor.getByText('로그인 없이 다운로드할 수 있어요.')).toBeVisible()
+  const imageBubbles = () =>
+    visitor
+      .getByTestId('theme-preview')
+      .locator('div')
+      .evaluateAll((els) => els.filter((el) => getComputedStyle(el).borderImageSource.startsWith('url("blob:')).length)
+  await expect.poll(imageBubbles).toBeGreaterThan(0)
   await expect(visitor.getByRole('banner').getByRole('button', { name: '로그인', exact: true })).toBeVisible()
   const downloadPromise = visitor.waitForEvent('download')
   const counted = visitor.waitForResponse(/recordDownload/)

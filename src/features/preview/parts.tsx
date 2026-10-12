@@ -1,11 +1,10 @@
 import { BatteryFull, Compass, MessageCircle, MoreHorizontal, ShoppingBag, Signal, UserRound, Wifi } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
-import { useAssetUrl } from '@/assets/useAssetUrl'
+import { useAssetSize, useAssetUrl } from '@/assets/useAssetUrl'
 import { mix } from '@/domain/theme/color'
 import type { ResolvedBubble, ResolvedTheme } from '@/domain/theme/resolve'
 import type { HexColor, TabKey } from '@/domain/theme/types'
 import { effectiveRadius, imageBubbleGeometry } from '@/exporters/ktheme/bubbleGeometry'
-import { useEditor } from '../editor/store'
 
 export function StatusBar({ color }: { color: HexColor }) {
   return (
@@ -102,7 +101,7 @@ export function HomeIndicator({ color }: { color: HexColor }) {
 /** Bubble preview. Generated bubbles use the same radius rule as the exporter; image bubbles use border-image with the export stretch point. */
 export function Bubble({ bubble, children }: { bubble: ResolvedBubble; children: ReactNode }) {
   const url = useAssetUrl(bubble.imageAssetId)
-  const record = useEditor((s) => (bubble.imageAssetId ? s.assets.get(bubble.imageAssetId) : undefined))
+  const size = useAssetSize(bubble.imageAssetId)
   const { insets } = bubble
   const base: CSSProperties = {
     padding: `${insets.top}px ${insets.right}px ${insets.bottom}px ${insets.left}px`,
@@ -112,8 +111,8 @@ export function Bubble({ bubble, children }: { bubble: ResolvedBubble; children:
     maxWidth: 196,
     overflowWrap: 'anywhere',
   }
-  if (bubble.kind === 'image' && url && record) {
-    const g = imageBubbleGeometry(record.width, record.height, bubble.stretch)
+  if (bubble.kind === 'image' && url && size) {
+    const g = imageBubbleGeometry(size.width, size.height, bubble.stretch)
     const top = g.stretch.y
     const left = g.stretch.x
     const bottom = Math.max(0, g.heightPt - g.stretch.y - 1)

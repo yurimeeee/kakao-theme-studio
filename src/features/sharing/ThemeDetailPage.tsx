@@ -1,7 +1,7 @@
 import { ChevronLeft, Download, Share2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { galleryHref } from '@/app/router'
-import { AssetProvider } from '@/assets/useAssetUrl'
+import { AssetProvider, type PreviewAsset } from '@/assets/useAssetUrl'
 import { Button } from '@/components/ui/Button'
 import { Segmented } from '@/components/ui/Segmented'
 import { Spinner } from '@/components/ui/Spinner'
@@ -23,7 +23,7 @@ type State =
   | { kind: 'loading' }
   | { kind: 'not-found' }
   | { kind: 'error' }
-  | { kind: 'ready'; share: SharedTheme; blobs: ReadonlyMap<AssetId, Blob> }
+  | { kind: 'ready'; share: SharedTheme; blobs: ReadonlyMap<AssetId, Blob>; preview: ReadonlyMap<AssetId, PreviewAsset> }
 
 export function NotViewable() {
   return (
@@ -51,7 +51,12 @@ export function ThemeDetailPage({ shareId }: { shareId: string }) {
       const share = await rt.shares.get(shareId)
       if (!share) return setState({ kind: 'not-found' })
       const blobs = await rt.shares.downloadAssets(share)
-      setState({ kind: 'ready', share, blobs })
+      const preview = new Map<AssetId, PreviewAsset>()
+      for (const [id, blob] of blobs) {
+        const entry = share.assetManifest[id]
+        if (entry) preview.set(id, { blob, width: entry.width, height: entry.height })
+      }
+      setState({ kind: 'ready', share, blobs, preview })
     } catch {
       setState({ kind: 'error' })
     }
@@ -84,7 +89,7 @@ export function ThemeDetailPage({ shareId }: { shareId: string }) {
     )
   }
 
-  const { share, blobs } = state
+  const { share, blobs, preview } = state
   const download = async () => {
     if (downloading) return
     setDownloading(true)
@@ -118,7 +123,7 @@ export function ThemeDetailPage({ shareId }: { shareId: string }) {
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-12">
         <section aria-label="미리보기" className="flex min-w-0 flex-col items-center gap-4 rounded-[var(--radius-card)] bg-canvas px-2 py-5 sm:px-6 lg:py-6">
           <Segmented label="미리보기 화면" hideLabel size="sm" value={screen} options={SCREENS} onChange={setScreen} className="w-full max-w-[360px]" />
-          <AssetProvider blobs={blobs}>
+          <AssetProvider assets={preview}>
             <ThemePreview config={share.config} screen={screen} />
           </AssetProvider>
           <p className="text-[12px] text-sub">iOS 미리보기 · 실제 앱과 조금 다를 수 있어요</p>

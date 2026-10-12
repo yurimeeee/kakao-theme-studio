@@ -86,7 +86,11 @@ describe('download de-duplication keys', () => {
   })
 
   it('takes the first forwarded IP', () => {
-    expect(clientIp({ 'x-forwarded-for': '9.9.9.9, 10.0.0.1' }, '127.0.0.1')).toBe('9.9.9.9')
+    // Only the entry appended by Google's front end counts; client-supplied ones are ignored.
+    expect(clientIp({ 'x-forwarded-for': '9.9.9.9, 203.0.113.7' }, '127.0.0.1')).toBe('203.0.113.7')
+    expect(clientIp({ 'x-forwarded-for': '1.1.1.1, 2.2.2.2, 203.0.113.7' }, '127.0.0.1')).toBe('203.0.113.7')
+    expect(clientIp({ 'x-forwarded-for': ['9.9.9.9', '203.0.113.7'] }, '127.0.0.1')).toBe('203.0.113.7')
+    expect(clientIp({ 'x-forwarded-for': '203.0.113.7' }, '127.0.0.1')).toBe('203.0.113.7')
     expect(clientIp({}, '127.0.0.1')).toBe('127.0.0.1')
   })
 })
