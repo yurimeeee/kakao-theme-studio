@@ -2,7 +2,7 @@ import { ColorField } from '@/components/ui/ColorField'
 import { NEUTRAL_SWATCHES } from '@/components/ui/swatches'
 import { FieldGroup, Notice } from '@/components/ui/Section'
 import { Segmented } from '@/components/ui/Segmented'
-import { resolveTheme } from '@/domain/theme/resolve'
+import { resolveThemeCached } from '@/domain/theme/resolve'
 import { TAB_KEYS, type ElementKey, type HexColor, type TabKey } from '@/domain/theme/types'
 import { ImageField } from '../ImageField'
 import { useEditor } from '../store'
@@ -38,7 +38,7 @@ function PalettePanel() {
 function BackgroundPanel() {
   const config = useConfig()
   const update = useUpdate()
-  const theme = resolveTheme(config)
+  const theme = resolveThemeCached(config)
   return (
     <div className="flex flex-col gap-6">
       <FieldGroup title="목록 배경" description="친구와 채팅 목록 화면이 함께 사용하는 하나의 배경이에요.">
@@ -66,7 +66,7 @@ function BackgroundPanel() {
 function HeaderInputPanel() {
   const config = useConfig()
   const update = useUpdate()
-  const theme = resolveTheme(config)
+  const theme = resolveThemeCached(config)
   const hi = config.headerInput
   const custom = hi.mode === 'color'
   const field = (key: Exclude<keyof typeof hi, 'mode'>, label: string, resolved: HexColor) => (
@@ -145,7 +145,7 @@ const TAB_LABELS: Record<TabKey, string> = { friends: '친구 탭', chats: '채�
 
 function TabsPanel() {
   const { tabs } = useConfig()
-  const theme = resolveTheme(useConfig())
+  const theme = resolveThemeCached(useConfig())
   const update = useUpdate()
   return (
     <div className="flex flex-col gap-6">
@@ -195,7 +195,7 @@ function TabsPanel() {
 function PasscodePanel() {
   const config = useConfig()
   const update = useUpdate()
-  const theme = resolveTheme(config)
+  const theme = resolveThemeCached(config)
   const pc = config.passcode
   const bullets = pc.bullets
   const optional = (key: 'titleColor' | 'keypadTextColor' | 'keypadBackground' | 'pressedColor', label: string, resolved: HexColor) => (

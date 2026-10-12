@@ -19,7 +19,28 @@ const SORTS: { value: GallerySort; label: string }[] = [
   { value: 'popular', label: '인기순' },
 ]
 
-const loadThumb = (path: string) => loadCloud().then((rt) => rt.shares.downloadThumbnail(path))
+/**
+ * Published thumbnails, kept across visits so going back or re-sorting does not download them
+ * again. Safe to cache: each path is per revision (immutable) and public — private account
+ * thumbnails are never cached here.
+ */
+const THUMB_CACHE_MAX = 120
+const thumbCache = new Map<string, Promise<Blob>>()
+
+function loadThumb(path: string): Promise<Blob> {
+  const hit = thumbCache.get(path)
+  if (hit) {
+    // Refresh recency (Map keeps insertion order).
+    thumbCache.delete(path)
+    thumbCache.set(path, hit)
+    return hit
+  }
+  const pending = loadCloud().then((rt) => rt.shares.downloadThumbnail(path))
+  pending.catch(() => thumbCache.delete(path))
+  thumbCache.set(path, pending)
+  if (thumbCache.size > THUMB_CACHE_MAX) thumbCache.delete(thumbCache.keys().next().value!)
+  return pending
+}
 
 /** 공개 themes only (the query and the rules both require visibility == public). */
 export function GalleryPage() {

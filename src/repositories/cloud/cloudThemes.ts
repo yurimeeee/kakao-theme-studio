@@ -28,6 +28,7 @@ import {
   type Visibility,
 } from '@/cloud/model'
 import { collectAssetIds, migrateConfig } from '@/domain/theme/normalize'
+import { mapLimit } from '@/lib/concurrency'
 import { CURRENT_SCHEMA_VERSION, type AssetId, type ThemeConfig, type ThemeProject } from '@/domain/theme/types'
 
 export type CloudAssetSource = Pick<AssetRecord, 'blob' | 'mime' | 'width' | 'height' | 'size' | 'hash' | 'name'>
@@ -67,6 +68,9 @@ export interface CloudDeps {
 
 /** Orphaned uploads younger than this are left alone: another device may be mid-save. */
 export const ORPHAN_GRACE_MS = 10 * 60 * 1000
+
+/** Parallel Storage / Firestore requests per batch (uploads, deletes, metadata reads). */
+export const IO_CONCURRENCY = 4
 
 const millis = (t: unknown, fallback = 0): number => {
   const ts = t as Timestamp | null | undefined
@@ -208,14 +212,16 @@ export class CloudThemeRepository {
         manifest[id] = entry
         if (!knownHashes.has(source.hash)) pending.set(path, { path, source })
       }
-      for (const { path, source } of pending.values()) {
-        await uploadBytes(ref(storage, path), source.blob, { contentType: source.mime, customMetadata: { sha256: source.hash } })
+      const thumbnailPath = input.thumbnail ? userThumbnailPath(uid, themeRef.id, revisionId) : null
+      const uploads: (() => Promise<unknown>)[] = [...pending.values()].map(
+        ({ path, source }) =>
+          () => uploadBytes(ref(storage, path), source.blob, { contentType: source.mime, customMetadata: { sha256: source.hash } }),
+      )
+      if (input.thumbnail && thumbnailPath) {
+        const thumb = input.thumbnail
+        uploads.push(() => uploadBytes(ref(storage, thumbnailPath), thumb, { contentType: 'image/png' }))
       }
-      let thumbnailPath: string | null = null
-      if (input.thumbnail) {
-        thumbnailPath = userThumbnailPath(uid, themeRef.id, revisionId)
-        await uploadBytes(ref(storage, thumbnailPath), input.thumbnail, { contentType: 'image/png' })
-      }
+      await mapLimit(uploads, IO_CONCURRENCY, (upload) => upload())
 
       const result = await runTransaction(db, async (tx) => {
         // A new theme has a fresh random id; rules deny reading documents one does not own
@@ -294,26 +300,19 @@ export class CloudThemeRepository {
       }
     }
 
-    let deletedFiles = 0
-    for (const folder of ['assets', 'thumbnails']) {
-      const listing = await listAll(ref(storage, `users/${uid}/themes/${themeId}/${folder}`))
-      for (const item of listing.items) {
-        if (keepPaths.has(item.fullPath)) continue
-        const meta = await getMetadata(item)
-        if (now - Date.parse(meta.updated) < ORPHAN_GRACE_MS) continue
-        await deleteObject(item)
-        deletedFiles++
-      }
-    }
+    const listings = await Promise.all(['assets', 'thumbnails'].map((folder) => listAll(ref(storage, `users/${uid}/themes/${themeId}/${folder}`))))
+    const candidates = listings.flatMap((l) => l.items).filter((item) => !keepPaths.has(item.fullPath))
+    const deleted = await mapLimit(candidates, IO_CONCURRENCY, async (item) => {
+      const meta = await getMetadata(item)
+      if (now - Date.parse(meta.updated) < ORPHAN_GRACE_MS) return false
+      await deleteObject(item)
+      return true
+    })
 
-    let deletedRevisions = 0
     const revs = await getDocs(query(collection(db, 'themes', themeId, 'revisions'), where('ownerId', '==', uid)))
-    for (const r of revs.docs) {
-      if (keepRevisions.has(r.id)) continue
-      await deleteDoc(r.ref)
-      deletedRevisions++
-    }
-    return { deletedFiles, deletedRevisions }
+    const staleRevs = revs.docs.filter((r) => !keepRevisions.has(r.id))
+    await mapLimit(staleRevs, IO_CONCURRENCY, (r) => deleteDoc(r.ref))
+    return { deletedFiles: deleted.filter(Boolean).length, deletedRevisions: staleRevs.length }
   }
 
   /**

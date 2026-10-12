@@ -6,7 +6,7 @@ import { FieldGroup, Notice } from '@/components/ui/Section'
 import { Segmented } from '@/components/ui/Segmented'
 import { Slider } from '@/components/ui/Slider'
 import { BUBBLE_RADIUS_MAX, BUBBLE_RADIUS_MIN } from '@/domain/theme/defaults'
-import { resolveTheme } from '@/domain/theme/resolve'
+import { resolveThemeCached } from '@/domain/theme/resolve'
 import type { AssetId, BubbleSetting, BubbleShape, EdgeInsets } from '@/domain/theme/types'
 import { imageBubbleGeometry } from '@/exporters/ktheme/bubbleGeometry'
 import { analyzeBubbleImage } from '../bubbleFit'
@@ -27,7 +27,7 @@ export function BubblePanel({ kind }: { kind: 'send' | 'receive' }) {
   const config = useEditor((s) => s.project!.config)
   const update = useEditor((s) => s.updateConfig)
   const bubble = config.bubbles[kind]
-  const resolved = resolveTheme(config).bubbles[kind]
+  const resolved = resolveThemeCached(config).bubbles[kind]
   const record = useEditor((s) => (bubble.imageAssetId ? s.assets.get(bubble.imageAssetId) : undefined))
   const set = (patch: Partial<BubbleSetting>) => update((c) => Object.assign(c.bubbles[kind], patch))
   const setAdvanced = (patch: Partial<BubbleSetting['advanced']>) => update((c) => Object.assign(c.bubbles[kind].advanced, patch))

@@ -102,6 +102,22 @@ function resolveBubble(b: BubbleSetting, defaultColor: HexColor, paletteText: He
   }
 }
 
+const resolvedCache = new WeakMap<ThemeConfig, ResolvedTheme>()
+
+/**
+ * resolveTheme memoized per config object. Editor configs are replaced, never mutated, on
+ * every edit, so one resolution is shared by the preview and every panel. Treat the
+ * result as read-only.
+ */
+export function resolveThemeCached(config: ThemeConfig): ResolvedTheme {
+  let theme = resolvedCache.get(config)
+  if (!theme) {
+    theme = resolveTheme(config)
+    resolvedCache.set(config, theme)
+  }
+  return theme
+}
+
 export function resolveTheme(config: ThemeConfig): ResolvedTheme {
   const { palette } = config
   const chatroomDefault = mix(palette.background, palette.text, 0.08)

@@ -26,7 +26,7 @@ import {
   drawThemeIcon,
   fillSolid,
 } from './draw'
-import type { Decoded, Rasterizer } from './raster'
+import type { Decoded, Rasterizer, Surface } from './raster'
 
 /** Immutable input taken at the moment 내보내기 is confirmed. */
 export interface ExportSnapshot {
@@ -55,6 +55,10 @@ export class ExportError extends Error {
   }
 }
 
+/** Parallel PNG encodes during export. */
+const MAX_PENDING_ENCODES = 4
+const EMPTY_PNG_SLOT = new Blob([], { type: 'image/png' })
+
 export const imagePath = (base: string, scale: Scale) => `${IMAGES_DIR}/${base}@${scale}x.png`
 export const CSS_BOM = '﻿'
 
@@ -62,6 +66,20 @@ export async function buildThemePackage(snapshot: ExportSnapshot, raster: Raster
   const theme = resolveTheme(snapshot.config)
   const files = new Map<string, Blob>()
   const decoded = new Map<AssetId, Decoded>()
+
+  // PNG encoding is async (often off the main thread), so it overlaps with drawing the next
+  // image. Only a few surfaces stay alive at once to bound canvas memory (iOS Safari limits it).
+  const encodes: Promise<void>[] = []
+  const inFlight = new Set<Promise<void>>()
+  const encode = async (path: string, surface: Surface) => {
+    files.set(path, EMPTY_PNG_SLOT) // reserve the slot so archive order stays deterministic
+    while (inFlight.size >= MAX_PENDING_ENCODES) await Promise.race(inFlight)
+    const job = surface.toPng().then((png) => void files.set(path, png))
+    // Failures surface through `encodes`; the throttle only needs to know a slot is free.
+    const tracked: Promise<void> = job.catch(() => undefined).finally(() => inFlight.delete(tracked))
+    inFlight.add(tracked)
+    encodes.push(job)
+  }
 
   const decode = async (id: AssetId): Promise<Decoded> => {
     const hit = decoded.get(id)
@@ -86,7 +104,7 @@ export async function buildThemePackage(snapshot: ExportSnapshot, raster: Raster
     for (const scale of SCALES) {
       const s = raster.surface(sizePt.w * scale, sizePt.h * scale)
       await draw(s.ctx, s.width, s.height, scale)
-      files.set(imagePath(base, scale), await s.toPng())
+      await encode(imagePath(base, scale), s)
     }
   }
 
@@ -174,7 +192,7 @@ export async function buildThemePackage(snapshot: ExportSnapshot, raster: Raster
       receive: theme.bubbles.receive.color,
       send: theme.bubbles.send.color,
     }, iconBg)
-    files.set(`${IMAGES_DIR}/${THEME_ICON_FILE}`, await icon.toPng())
+    await encode(`${IMAGES_DIR}/${THEME_ICON_FILE}`, icon)
 
     const model: ThemeCssModel = {
       manifest: {
@@ -223,8 +241,11 @@ export async function buildThemePackage(snapshot: ExportSnapshot, raster: Raster
     }
     const css = serializeThemeCss(model)
     files.set(CSS_FILE_NAME, new Blob([CSS_BOM + css], { type: 'text/css;charset=utf-8' }))
+    await Promise.all(encodes)
     return { files, css }
   } finally {
+    // Drawing is done (all encodes started) or failed; let started encodes settle before returning.
+    await Promise.allSettled(encodes)
     for (const d of decoded.values()) d.close()
   }
 
@@ -249,7 +270,7 @@ export async function buildThemePackage(snapshot: ExportSnapshot, raster: Raster
           const s = raster.surface((img.width * scale) / 3, (img.height * scale) / 3)
           drawScaled(s.ctx, img, s.width, s.height)
           if (dark) darkenDrawn(s.ctx, s.width, s.height, SELECTED_DARKEN)
-          files.set(imagePath(`${base}${suffix}`, scale), await s.toPng())
+          await encode(imagePath(`${base}${suffix}`, scale), s)
         }
       }
       return {

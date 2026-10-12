@@ -71,15 +71,16 @@ export async function saveOpenProjectToCloud(options: { visibility?: Visibility;
   }
 
   const localBlobs = new Map([...assets.values()].map((a) => [a.hash, a.blob]))
+  const localThumbnail = thumbnail ? { revisionId: result.revisionId, blob: thumbnail } : null
   let visibility = result.visibility
   let shareId = result.shareId
   let publishWarning: string | null = null
   try {
     if (options.visibility && options.visibility !== result.visibility) {
-      shareId = (await rt.shares.setVisibility(result.themeId, options.visibility, { localBlobs })).shareId
+      shareId = (await rt.shares.setVisibility(result.themeId, options.visibility, { localBlobs, localThumbnail })).shareId
       visibility = options.visibility
     } else if (result.visibility !== 'private') {
-      await rt.shares.syncPublished(result.themeId, localBlobs)
+      await rt.shares.syncPublished(result.themeId, { localBlobs, localThumbnail })
     }
   } catch {
     publishWarning =

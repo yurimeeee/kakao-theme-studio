@@ -33,7 +33,8 @@ import { THEME_NAME_MAX_LENGTH } from '@/domain/theme/defaults'
 import { migrateConfig, removeAssetRefs } from '@/domain/theme/normalize'
 import { activeAssetIds, resolveTheme } from '@/domain/theme/resolve'
 import { CURRENT_SCHEMA_VERSION, type AssetId, type ThemeConfig } from '@/domain/theme/types'
-import { CloudThemeRepository, downloadManifest, fetchBlob, requireUid, type CloudDeps, type CloudTheme } from './cloudThemes'
+import { mapLimit } from '@/lib/concurrency'
+import { CloudThemeRepository, downloadManifest, fetchBlob, IO_CONCURRENCY, requireUid, type CloudDeps, type CloudTheme } from './cloudThemes'
 
 export type PublicVisibility = Exclude<Visibility, 'private'>
 
@@ -92,6 +93,8 @@ export interface PublishOptions {
   rotateLink?: boolean
   /** Originals already in memory, keyed by SHA-256, to avoid downloading them again. */
   localBlobs?: ReadonlyMap<string, Blob>
+  /** Thumbnail already in memory for `revisionId`; used only if that revision is still active. */
+  localThumbnail?: { revisionId: string; blob: Blob } | null
 }
 
 /**
@@ -107,43 +110,52 @@ export class ShareRepository {
   private readonly deps: CloudDeps & { functions: Functions }
   private readonly themes: CloudThemeRepository
 
-  constructor(deps: CloudDeps & { functions: Functions }) {
+  constructor(deps: CloudDeps & { functions: Functions }, themes: CloudThemeRepository = new CloudThemeRepository(deps)) {
     this.deps = deps
-    this.themes = new CloudThemeRepository(deps)
+    this.themes = themes
   }
 
   async setVisibility(themeId: string, visibility: Visibility, options: PublishOptions = {}): Promise<{ shareId: string | null }> {
-    const { db } = this.deps
     requireUid(this.deps.auth)
     try {
       const theme = await this.themes.get(themeId)
       if (!theme) throw new CloudError('not-found', 'Theme not found')
-      const themeRef = doc(db, 'themes', themeId)
-
-      if (visibility === 'private') {
-        if (theme.shareId) await deleteDoc(doc(db, 'shares', theme.shareId))
-        await updateDoc(themeRef, { visibility: 'private', shareId: null })
-        return { shareId: null }
-      }
-
-      const reuse = theme.shareId && !options.rotateLink ? await this.existingShare(theme.shareId) : null
-      const shareId = reuse ? theme.shareId! : createShareId()
-      await this.publishSnapshot(shareId, theme, visibility, reuse !== null, options.localBlobs)
-      if (theme.shareId && theme.shareId !== shareId) {
-        await deleteDoc(doc(db, 'shares', theme.shareId)).catch(() => undefined)
-      }
-      await updateDoc(themeRef, { visibility, shareId })
-      return { shareId }
+      return await this.applyVisibility(theme, visibility, options)
     } catch (error) {
       throw toCloudError(error)
     }
   }
 
   /** Re-publishes the active revision to the existing share (after a cloud save of a shared theme). */
-  async syncPublished(themeId: string, localBlobs?: ReadonlyMap<string, Blob>): Promise<void> {
-    const theme = await this.themes.get(themeId)
-    if (!theme || theme.visibility === 'private') return
-    await this.setVisibility(themeId, theme.visibility, { localBlobs })
+  async syncPublished(themeId: string, options: Omit<PublishOptions, 'rotateLink'> = {}): Promise<void> {
+    requireUid(this.deps.auth)
+    try {
+      const theme = await this.themes.get(themeId)
+      if (!theme || theme.visibility === 'private') return
+      await this.applyVisibility(theme, theme.visibility, options)
+    } catch (error) {
+      throw toCloudError(error)
+    }
+  }
+
+  private async applyVisibility(theme: CloudTheme, visibility: Visibility, options: PublishOptions): Promise<{ shareId: string | null }> {
+    const { db } = this.deps
+    const themeRef = doc(db, 'themes', theme.id)
+
+    if (visibility === 'private') {
+      if (theme.shareId) await deleteDoc(doc(db, 'shares', theme.shareId))
+      await updateDoc(themeRef, { visibility: 'private', shareId: null })
+      return { shareId: null }
+    }
+
+    const reuse = theme.shareId && !options.rotateLink ? await this.existingShare(theme.shareId) : null
+    const shareId = reuse ? theme.shareId! : createShareId()
+    await this.publishSnapshot(shareId, theme, visibility, reuse, options)
+    if (theme.shareId && theme.shareId !== shareId) {
+      await deleteDoc(doc(db, 'shares', theme.shareId)).catch(() => undefined)
+    }
+    await updateDoc(themeRef, { visibility, shareId })
+    return { shareId }
   }
 
   private async existingShare(shareId: string): Promise<Record<string, unknown> | null> {
@@ -155,8 +167,8 @@ export class ShareRepository {
     shareId: string,
     theme: CloudTheme,
     visibility: PublicVisibility,
-    exists: boolean,
-    localBlobs?: ReadonlyMap<string, Blob>,
+    existing: Record<string, unknown> | null,
+    options: PublishOptions,
   ): Promise<void> {
     const { db, storage, auth } = this.deps
     const uid = requireUid(auth)
@@ -178,7 +190,7 @@ export class ShareRepository {
       searchTokens: searchTokens(theme.name),
       updatedAt: serverTimestamp(),
     }
-    if (!exists) {
+    if (!existing) {
       // Storage rules authorize uploads against this document, so it must exist first.
       await setDoc(shareRef, {
         ...base,
@@ -191,35 +203,49 @@ export class ShareRepository {
       })
     }
 
+    // Files a ready share already lists are in place; paths are content-addressed (asset hash,
+    // thumbnail revision), so the same path means the same bytes and needs no re-upload.
+    const published = new Set<string>()
+    if (existing?.status === 'ready') {
+      Object.values((existing.assetManifest as AssetManifest | undefined) ?? {}).forEach((a) => published.add(a.path))
+      if (typeof existing.thumbnailPath === 'string') published.add(existing.thumbnailPath)
+    }
+
     const manifest: AssetManifest = {}
-    const copied = new Set<string>()
+    const uploads = new Map<string, () => Promise<unknown>>()
     for (const id of active) {
       const entry = theme.assetManifest[id]
       if (!entry) throw new CloudError('missing-asset', `Asset ${id} missing from manifest`)
       const path = shareAssetPath(shareId, entry.hash, entry.ext)
       manifest[id] = { ...entry, path }
-      if (copied.has(path)) continue
-      copied.add(path)
-      const blob = localBlobs?.get(entry.hash) ?? (await fetchBlob(storage, entry.path, entry.mime))
-      await uploadBytes(ref(storage, path), blob, { contentType: entry.mime })
+      if (published.has(path) || uploads.has(path)) continue
+      uploads.set(path, async () => {
+        const blob = options.localBlobs?.get(entry.hash) ?? (await fetchBlob(storage, entry.path, entry.mime))
+        await uploadBytes(ref(storage, path), blob, { contentType: entry.mime })
+      })
     }
     let thumbnailPath: string | null = null
     if (theme.thumbnailPath) {
+      const sourcePath = theme.thumbnailPath
       thumbnailPath = shareThumbnailPath(shareId, theme.activeRevisionId)
-      const thumb = await fetchBlob(storage, theme.thumbnailPath, 'image/png')
-      await uploadBytes(ref(storage, thumbnailPath), thumb, { contentType: 'image/png' })
+      const target = thumbnailPath
+      const local = options.localThumbnail?.revisionId === theme.activeRevisionId ? options.localThumbnail.blob : null
+      if (!published.has(target)) {
+        uploads.set(target, async () => {
+          const thumb = local ?? (await fetchBlob(storage, sourcePath, 'image/png'))
+          await uploadBytes(ref(storage, target), thumb, { contentType: 'image/png' })
+        })
+      }
     }
+    await mapLimit(uploads.values(), IO_CONCURRENCY, (upload) => upload())
 
     await updateDoc(shareRef, { ...base, status: 'ready', config, assetManifest: manifest, thumbnailPath })
 
     // Remove published files the new snapshot no longer uses.
     const keep = new Set([...Object.values(manifest).map((a) => a.path), thumbnailPath].filter(Boolean) as string[])
-    for (const folder of ['assets', 'thumbnails']) {
-      const listing = await listAll(ref(storage, `shares/${shareId}/${folder}`)).catch(() => null)
-      for (const item of listing?.items ?? []) {
-        if (!keep.has(item.fullPath)) await deleteObject(item).catch(() => undefined)
-      }
-    }
+    const listings = await Promise.all(['assets', 'thumbnails'].map((folder) => listAll(ref(storage, `shares/${shareId}/${folder}`)).catch(() => null)))
+    const unused = listings.flatMap((l) => l?.items ?? []).filter((item) => !keep.has(item.fullPath))
+    await mapLimit(unused, IO_CONCURRENCY, (item) => deleteObject(item).catch(() => undefined))
   }
 
   /** Anyone (signed in or not). null when the link is unknown, 비공개 or deleted. */

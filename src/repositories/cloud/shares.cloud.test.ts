@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
-import { getBytes, ref, uploadBytes } from 'firebase/storage'
+import { getBytes, getMetadata, ref, uploadBytes } from 'firebase/storage'
 import { describe, expect, it } from 'vitest'
 import type { ThemeProject } from '@/domain/theme/types'
 import { adminDocExists, anonymousClient, eventually, projectWithImages, signedInClient, uniqueTag } from '@/test/cloudEmulator'
@@ -118,6 +118,27 @@ describe('ShareRepository (emulator)', () => {
     const shared = await new ShareRepository(anonymousClient()).get(shareId!)
     expect(shared).toMatchObject({ name: '바뀐 이름' })
     expect(shared!.config.palette.accent).toBe('#abcdef')
+  })
+
+  it('re-publishing keeps unchanged published files and uses the local thumbnail', async () => {
+    const { owner, themes, shares, project, assets, saved } = await ownerWithTheme()
+    const { shareId } = await shares.setVisibility(saved.themeId, 'public')
+    const before = (await new ShareRepository(anonymousClient()).get(shareId!))!
+    const assetPath = Object.values(before.assetManifest)[0].path
+    const generation = (await getMetadata(ref(owner.storage, assetPath))).generation
+
+    const next = linked(project, saved)
+    next.config.palette.accent = '#abcdef'
+    const thumb = new Blob([new Uint8Array([137, 80, 78, 71, 1, 2, 3])], { type: 'image/png' })
+    const r2 = await themes.save({ project: next, assets, thumbnail: thumb })
+    await shares.syncPublished(saved.themeId, { localThumbnail: { revisionId: r2.revisionId, blob: thumb } })
+
+    const after = (await new ShareRepository(anonymousClient()).get(shareId!))!
+    expect(after.config.palette.accent).toBe('#abcdef')
+    expect(Object.values(after.assetManifest)[0].path).toBe(assetPath)
+    expect((await getMetadata(ref(owner.storage, assetPath))).generation).toBe(generation)
+    expect(after.thumbnailPath).not.toBe(before.thumbnailPath)
+    expect((await getBytes(ref(owner.storage, after.thumbnailPath!))).byteLength).toBe(thumb.size)
   })
 
   it('only the owner can change a share; nobody can forge download counts', async () => {

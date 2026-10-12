@@ -28,11 +28,12 @@ export function getCloudRuntime(): CloudRuntime {
     const base = getAuthRuntime()
     const services = addDataServices(base, cloudConfig)
     const kakao = httpsCallable<{ code: string; redirectUri: string }, { token: string }>(services.functions, 'kakaoSignIn')
+    const themes = new CloudThemeRepository(services)
     runtime = {
       config: cloudConfig,
       services,
-      themes: new CloudThemeRepository(services),
-      shares: new ShareRepository(services),
+      themes,
+      shares: new ShareRepository(services, themes),
       authApi: base.authApi,
       exchangeKakaoCode: async (code, redirectUri) => (await kakao({ code, redirectUri })).data.token,
     }

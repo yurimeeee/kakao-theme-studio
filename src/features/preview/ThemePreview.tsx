@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { SCREEN_LABELS } from '../editor/elements'
-import { resolveTheme } from '@/domain/theme/resolve'
+import { resolveThemeCached } from '@/domain/theme/resolve'
 import type { PreviewScreen, ThemeConfig } from '@/domain/theme/types'
 import { HomeIndicator, StatusBar } from './parts'
 import { useFillStyle } from './useFillStyle'
@@ -14,7 +14,7 @@ const PHONE_H = 630
  * Drawn at a fixed logical size and scaled to fit, so 320px screens keep layout.
  */
 export function ThemePreview({ config, screen }: { config: ThemeConfig; screen: PreviewScreen }) {
-  const theme = useMemo(() => resolveTheme(config), [config])
+  const theme = resolveThemeCached(config)
   const hostRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
 

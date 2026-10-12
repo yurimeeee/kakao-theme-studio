@@ -19,9 +19,14 @@ export interface Decoded {
   close(): void
 }
 
+export interface DecodeOptions {
+  /** Decode straight to this pixel size (aspect ratio is the caller's job); avoids a full-size bitmap. */
+  resize?: { width: number; height: number }
+}
+
 export interface Rasterizer {
   surface(width: number, height: number): Surface
-  decode(blob: Blob): Promise<Decoded>
+  decode(blob: Blob, options?: DecodeOptions): Promise<Decoded>
 }
 
 export class BrowserRasterizer implements Rasterizer {
@@ -50,8 +55,12 @@ export class BrowserRasterizer implements Rasterizer {
     }
   }
 
-  async decode(blob: Blob): Promise<Decoded> {
-    const bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' })
+  async decode(blob: Blob, options: DecodeOptions = {}): Promise<Decoded> {
+    const size = options.resize
+    const bitmap = await createImageBitmap(blob, {
+      imageOrientation: 'from-image',
+      ...(size && { resizeWidth: Math.max(1, Math.round(size.width)), resizeHeight: Math.max(1, Math.round(size.height)), resizeQuality: 'medium' as const }),
+    })
     return { width: bitmap.width, height: bitmap.height, source: bitmap, close: () => bitmap.close() }
   }
 }

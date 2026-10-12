@@ -114,9 +114,18 @@ function ElementChips({ selected, onSelect }: { selected: ElementKey | null; onS
   )
 }
 
+/** The only part of the page that subscribes to the config. */
+function EditorPreview({ screen }: { screen: PreviewScreen }) {
+  const config = useEditor((s) => s.project?.config)
+  return config ? <ThemePreview config={config} screen={screen} /> : null
+}
+
 export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }> }) {
   const phase = useEditor((s) => s.phase)
-  const project = useEditor((s) => s.project)
+  // Narrow subscriptions: config edits re-render only the preview and the open panel.
+  const hasProject = useEditor((s) => s.project !== null)
+  const projectName = useEditor((s) => s.project?.name ?? '')
+  const cloudThemeId = useEditor((s) => s.project?.cloudThemeId ?? null)
   const loadError = useEditor((s) => s.loadError)
   const notice = useEditor((s) => s.notice)
   const saveState = useEditor((s) => s.saveState)
@@ -163,7 +172,7 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
       </div>
     )
   }
-  if (phase === 'not-found' || phase === 'failed' || !project) {
+  if (phase === 'not-found' || phase === 'failed' || !hasProject) {
     return (
       <div className="mx-auto flex min-h-[50dvh] max-w-sm flex-col items-center justify-center gap-3 text-center">
         <p className="text-[18px] font-bold">{phase === 'not-found' ? '이 테마를 볼 수 없어요.' : '테마를 불러오지 못했어요.'}</p>
@@ -201,7 +210,7 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
     }
     // Signed in: the explicit 저장 is the only moment work is uploaded.
     try {
-      const out = await saveOpenProjectToCloud({ visibility: project.cloudThemeId ? undefined : visibility })
+      const out = await saveOpenProjectToCloud({ visibility: cloudThemeId ? undefined : visibility })
       toast(out.publishWarning ?? '클라우드에 저장했어요.')
     } catch (e) {
       if (isConflict(e)) return setConflict(e.kind as 'conflict' | 'gone')
@@ -235,7 +244,7 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
     setConflictBusy(choice)
     try {
       if (choice === 'cloud') {
-        const r = await openCloudTheme(project.cloudThemeId!, { replace: true })
+        const r = await openCloudTheme(cloudThemeId!, { replace: true })
         await open({ kind: 'project', id: r.localId })
         toast('클라우드 버전을 불러왔어요.')
       } else {
@@ -252,7 +261,7 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
 
   const onShare = () => {
     if (!signedIn) return openLogin('공유하려면 로그인해 주세요.')
-    if (!project.cloudThemeId) {
+    if (!cloudThemeId) {
       toast('공유하려면 테마를 먼저 저장해 주세요.')
       return setDialog('save')
     }
@@ -264,11 +273,11 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h1 className="truncate text-[26px] font-bold leading-tight tracking-[-0.01em] lg:text-[30px]" data-testid="theme-name">
-            {project.name}
+            {projectName}
           </h1>
           <div className="flex flex-wrap items-center gap-x-3">
             <SaveStatus state={saveState} />
-            {signedIn && project.cloudThemeId && (
+            {signedIn && cloudThemeId && (
               <span className="flex items-center gap-1 text-[13px] text-sub" data-testid="cloud-linked">
                 <Cloud className="size-3.5" aria-hidden />
                 클라우드 연결
@@ -301,7 +310,7 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
         <section aria-label="미리보기" className="flex min-w-0 flex-col items-center gap-4 rounded-[var(--radius-card)] bg-canvas px-2 py-5 sm:px-6 lg:sticky lg:top-6 lg:self-start lg:py-6">
           <Segmented label="미리보기 화면" hideLabel size="sm" value={screen} options={SCREENS} onChange={setScreen} className="w-full max-w-[360px]" />
           <div className="w-full">
-            <ThemePreview config={project.config} screen={screen} />
+            <EditorPreview screen={screen} />
           </div>
           <p className="text-[12px] text-sub">iOS 미리보기 · 실제 앱과 조금 다를 수 있어요</p>
         </section>
@@ -335,18 +344,18 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
             ? '이 브라우저에 저장하고, 이미지와 설정을 내 계정 클라우드에도 저장해요.'
             : '이 브라우저에 저장해요. 브라우저 데이터를 지우면 함께 삭제될 수 있어요.'
         }
-        initialName={project.name}
+        initialName={projectName}
         confirmLabel="저장"
         busyLabel="저장 중…"
         onConfirm={confirmSave}
       >
-        {signedIn && !project.cloudThemeId && (
+        {signedIn && !cloudThemeId && (
           <div className="flex flex-col gap-2">
             <Segmented label="공개 범위" value={visibility} options={VISIBILITIES.map((v) => ({ value: v, label: VISIBILITY_LABELS[v] }))} onChange={setVisibility} />
             <p className="text-[12px] leading-relaxed text-sub">{VISIBILITY_DESCRIPTIONS[visibility]}</p>
           </div>
         )}
-        {signedIn && project.cloudThemeId && (
+        {signedIn && cloudThemeId && (
           <p className="rounded-[var(--radius-field)] bg-canvas px-4 py-3 text-[13px] leading-relaxed text-sub">
             공개 범위는 공유 버튼에서 바꿀 수 있어요. 공개 중인 테마는 저장하면 공개된 내용도 바뀌어요.
           </p>
@@ -368,7 +377,7 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
         onOpenChange={(o) => !o && setDialog(null)}
         title="테마 내보내기"
         description="아이폰 카카오톡용 .ktheme 파일을 이 브라우저에서 만들어 내려받아요."
-        initialName={project.name}
+        initialName={projectName}
         confirmLabel="내보내기"
         busyLabel="테마를 준비하고 있어요."
         onConfirm={confirmExport}
@@ -381,7 +390,7 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
       </NameDialog>
 
       {signedIn && (
-        <ShareDialog themeId={shareOpen ? project.cloudThemeId : null} themeName={project.name} onOpenChange={setShareOpen} />
+        <ShareDialog themeId={shareOpen ? cloudThemeId : null} themeName={projectName} onOpenChange={setShareOpen} />
       )}
 
       <Dialog

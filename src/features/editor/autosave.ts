@@ -1,7 +1,7 @@
 import { getRepositories } from '@/app/services'
 import { editorHref, navigate } from '@/app/router'
 import { storageErrorMessage } from '@/repositories/types'
-import { renderThumbnail } from '../projects/thumbnail'
+import { renderThumbnail, thumbnailKey } from '../projects/thumbnail'
 import { onEdit, useEditor } from './store'
 
 /**
@@ -18,6 +18,8 @@ const MAX_WAIT_MS = 4000
 let debounceTimer: number | undefined
 let maxWaitTimer: number | undefined
 let chain: Promise<boolean> = Promise.resolve(true)
+/** Thumbnail last stored by autosave; unchanged inputs skip the decode + PNG encode. */
+let storedThumb: { projectId: string; key: string } | null = null
 
 function clearTimers() {
   window.clearTimeout(debounceTimer)
@@ -52,8 +54,12 @@ async function writeSnapshot(explicit: boolean): Promise<boolean> {
 
   try {
     const repos = getRepositories()
-    const thumbnail = await renderThumbnail(snapshot.config, state.assets).catch(() => null)
+    const thumbKey = thumbnailKey(snapshot.config)
+    const thumbStale = storedThumb?.projectId !== snapshot.id || storedThumb.key !== thumbKey
+    // null keeps the stored thumbnail.
+    const thumbnail = thumbStale ? await renderThumbnail(snapshot.config, state.assets).catch(() => null) : null
     const saved = await repos.projects.save(snapshot, { snapshotAt, thumbnail, explicit })
+    if (thumbnail) storedThumb = { projectId: saved.id, key: thumbKey }
     // Ask the browser not to evict local work under storage pressure (best effort, may be denied).
     if (explicit) void navigator.storage?.persist?.().catch(() => false)
     await repos.settings.setLastProjectId(saved.id).catch(() => undefined)

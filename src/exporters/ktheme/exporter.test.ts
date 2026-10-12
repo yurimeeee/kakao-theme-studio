@@ -130,6 +130,45 @@ describe('validatePackage', () => {
     expect((await validatePackage(noName)).map((i) => i.code)).toContain('missing-manifest-field')
   })
 
+  it('encodes PNGs concurrently but keeps archive order deterministic and every file filled', async () => {
+    class SlowRasterizer extends FakeRasterizer {
+      active = 0
+      peak = 0
+      n = 0
+      surface(width: number, height: number) {
+        const s = super.surface(width, height)
+        const delay = (this.n++ * 7) % 5 // out-of-order completion
+        return {
+          ...s,
+          toPng: async () => {
+            this.active++
+            this.peak = Math.max(this.peak, this.active)
+            await new Promise((r) => setTimeout(r, delay))
+            this.active--
+            return s.toPng()
+          },
+        }
+      }
+    }
+    const slow = new SlowRasterizer()
+    const a = await buildThemePackage(snapshot(), slow)
+    const b = await buildThemePackage(snapshot(), new FakeRasterizer())
+    expect([...a.files.keys()]).toEqual([...b.files.keys()])
+    expect([...a.files.values()].every((f) => f.size > 0)).toBe(true)
+    expect(slow.peak).toBeGreaterThan(1)
+    expect(slow.peak).toBeLessThanOrEqual(4)
+  })
+
+  it('fails the export when a PNG encode fails', async () => {
+    class FailingRasterizer extends FakeRasterizer {
+      surface(width: number, height: number) {
+        const s = super.surface(width, height)
+        return this.surfaces.length === 5 ? { ...s, toPng: () => Promise.reject(new Error('encode failed')) } : s
+      }
+    }
+    await expect(buildThemePackage(snapshot(), new FailingRasterizer())).rejects.toThrow('encode failed')
+  })
+
   it('detects @2x/@3x size mismatch', async () => {
     const pkg = await buildThemePackage(snapshot(), new FakeRasterizer())
     const files = new Map(pkg.files)
