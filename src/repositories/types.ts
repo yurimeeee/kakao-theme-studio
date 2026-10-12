@@ -15,6 +15,8 @@ export interface ProjectSummary {
   savedAt: number | null
   thumbnail: Blob | null
   location: 'local'
+  cloudThemeId: string | null
+  cloudOwnerId: string | null
 }
 
 export interface SaveOptions {
@@ -40,6 +42,15 @@ export interface ProjectRepository {
   save(project: ThemeProject, options: SaveOptions): Promise<ThemeProject>
   /** Removes the project, its thumbnail and all of its assets. */
   delete(id: LocalProjectId): Promise<void>
+  /** The local copy linked to a cloud theme, if this browser has one. */
+  findByCloudThemeId(cloudThemeId: string): Promise<ThemeProject | null>
+  /**
+   * Writes a project downloaded from the cloud, replacing the local row and all of its
+   * assets in one transaction (explicit user action: 편집 from 내 테마 / 클라우드 버전 불러오기).
+   */
+  replaceFromCloud(project: ThemeProject, assets: AssetRecord[], thumbnail: Blob | null): Promise<ThemeProject>
+  /** Removes every local copy linked to `ownerId` (sign-out with "이 기기에서 지우기"). Returns the count. */
+  deleteByCloudOwner(ownerId: string): Promise<number>
 }
 
 export interface AssetRepository {

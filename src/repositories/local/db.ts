@@ -5,6 +5,9 @@ import type { AssetRecord } from '@/assets/types'
 export interface ProjectRow {
   id: string
   cloudThemeId: string | null
+  /** Added in DB version 2; missing on older rows. */
+  cloudOwnerId?: string | null
+  cloudRevisionId?: string | null
   exportThemeId: string
   name: string
   config: unknown
@@ -41,5 +44,7 @@ export class LocalDatabase extends Dexie {
       thumbnails: 'projectId',
       meta: 'key',
     })
+    // v2: cloud link lookup (a cloud theme maps to at most one local project per browser).
+    this.version(2).stores({ projects: 'id, updatedAt, cloudThemeId' })
   }
 }

@@ -84,6 +84,8 @@ export function createNewProject(now = Date.now()): ThemeProject {
   return {
     id: createLocalProjectId(),
     cloudThemeId: null,
+    cloudOwnerId: null,
+    cloudRevisionId: null,
     exportThemeId: createExportThemeId(),
     name: DEFAULT_THEME_NAME,
     config: createDefaultConfig(),

@@ -31,7 +31,13 @@ async function guard<T>(op: () => Promise<T>): Promise<T> {
 
 function rowToProject(row: ProjectRow): ThemeProject {
   try {
-    return { ...row, config: migrateConfig(row.config) }
+    return {
+      ...row,
+      cloudThemeId: row.cloudThemeId ?? null,
+      cloudOwnerId: row.cloudOwnerId ?? null,
+      cloudRevisionId: row.cloudRevisionId ?? null,
+      config: migrateConfig(row.config),
+    }
   } catch (error) {
     throw new StorageError('corrupt', `Project ${row.id} could not be read`, error)
   }
@@ -64,6 +70,8 @@ export class LocalProjectRepository implements ProjectRepository {
         savedAt: r.savedAt,
         thumbnail: byId.get(r.id) ?? null,
         location: 'local' as const,
+        cloudThemeId: r.cloudThemeId ?? null,
+        cloudOwnerId: r.cloudOwnerId ?? null,
       }))
     })
   }
@@ -119,6 +127,44 @@ export class LocalProjectRepository implements ProjectRepository {
         if (last?.value === id) await this.db.meta.delete('lastProjectId')
       }),
     )
+  }
+
+  findByCloudThemeId(cloudThemeId: string): Promise<ThemeProject | null> {
+    return guard(async () => {
+      const row = await this.db.projects.where('cloudThemeId').equals(cloudThemeId).first()
+      return row ? rowToProject(row) : null
+    })
+  }
+
+  replaceFromCloud(project: ThemeProject, assets: AssetRecord[], thumbnail: Blob | null): Promise<ThemeProject> {
+    return guard(() =>
+      this.db.transaction('rw', [this.db.projects, this.db.assets, this.db.thumbnails], async () => {
+        if (assets.some((a) => a.projectId !== project.id)) throw new Error('Asset belongs to another project')
+        const existing = await this.db.projects.get(project.id)
+        const now = Date.now()
+        const next: ThemeProject = {
+          ...project,
+          createdAt: existing?.createdAt ?? project.createdAt,
+          updatedAt: now,
+          savedAt: now,
+          revision: (existing?.revision ?? 0) + 1,
+        }
+        await this.db.assets.where('projectId').equals(project.id).delete()
+        if (assets.length) await this.db.assets.bulkPut(assets)
+        await this.db.projects.put(projectToRow(next))
+        if (thumbnail) await this.db.thumbnails.put({ projectId: project.id, blob: thumbnail })
+        else await this.db.thumbnails.delete(project.id)
+        return next
+      }),
+    )
+  }
+
+  deleteByCloudOwner(ownerId: string): Promise<number> {
+    return guard(async () => {
+      const ids = (await this.db.projects.toArray()).filter((r) => r.cloudOwnerId === ownerId).map((r) => r.id)
+      for (const id of ids) await this.delete(id)
+      return ids.length
+    })
   }
 }
 

@@ -144,8 +144,16 @@ export type LocalProjectId = string
 export interface ThemeProject {
   /** Local id (`lp_…`). Never reused as a cloud id. */
   id: LocalProjectId
-  /** Phase 4: Firestore theme id once first saved to the cloud. Always null in phase 1. */
+  /**
+   * Cloud link, set after the first successful cloud 저장. The three fields are set
+   * and cleared together. A project linked to an account is only shown while that
+   * account is signed in (private cache protection on sign-out / account switch).
+   */
   cloudThemeId: string | null
+  /** Firebase uid that owns `cloudThemeId`. */
+  cloudOwnerId: string | null
+  /** Cloud revision this local copy is based on; the next cloud save must match it. */
+  cloudRevisionId: string | null
   /** Stable id written to the .ktheme manifest. */
   exportThemeId: string
   name: string

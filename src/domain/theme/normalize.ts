@@ -203,23 +203,28 @@ export function collectAssetIds(config: ThemeConfig): Set<AssetId> {
   return ids
 }
 
+/** Returns a copy of `config` with every asset reference passed through `map` (inactive branches included). */
+export function mapAssetRefs(config: ThemeConfig, map: (id: AssetId) => AssetId | null): ThemeConfig {
+  const next = structuredClone(config)
+  const m = (id: AssetId | null) => (id ? map(id) : null)
+  next.background.main.imageAssetId = m(next.background.main.imageAssetId)
+  next.background.chatroom.imageAssetId = m(next.background.chatroom.imageAssetId)
+  for (const b of [next.bubbles.send, next.bubbles.receive]) {
+    b.imageAssetId = m(b.imageAssetId)
+    b.advanced.groupImageAssetId = m(b.advanced.groupImageAssetId)
+  }
+  next.profile.imageAssetId = m(next.profile.imageAssetId)
+  for (const k of TAB_KEYS) {
+    next.tabs.icons[k].normal = m(next.tabs.icons[k].normal)
+    next.tabs.icons[k].selected = m(next.tabs.icons[k].selected)
+  }
+  next.passcode.background.imageAssetId = m(next.passcode.background.imageAssetId)
+  next.passcode.bullets.normal = next.passcode.bullets.normal.map(m)
+  next.passcode.bullets.selected = next.passcode.bullets.selected.map(m)
+  return next
+}
+
 /** Returns a copy of `config` with every reference to `ids` cleared (used when stored images are missing). */
 export function removeAssetRefs(config: ThemeConfig, ids: ReadonlySet<AssetId>): ThemeConfig {
-  const next = structuredClone(config)
-  const clear = (id: AssetId | null) => (id && ids.has(id) ? null : id)
-  next.background.main.imageAssetId = clear(next.background.main.imageAssetId)
-  next.background.chatroom.imageAssetId = clear(next.background.chatroom.imageAssetId)
-  for (const b of [next.bubbles.send, next.bubbles.receive]) {
-    b.imageAssetId = clear(b.imageAssetId)
-    b.advanced.groupImageAssetId = clear(b.advanced.groupImageAssetId)
-  }
-  next.profile.imageAssetId = clear(next.profile.imageAssetId)
-  for (const k of TAB_KEYS) {
-    next.tabs.icons[k].normal = clear(next.tabs.icons[k].normal)
-    next.tabs.icons[k].selected = clear(next.tabs.icons[k].selected)
-  }
-  next.passcode.background.imageAssetId = clear(next.passcode.background.imageAssetId)
-  next.passcode.bullets.normal = next.passcode.bullets.normal.map(clear)
-  next.passcode.bullets.selected = next.passcode.bullets.selected.map(clear)
-  return next
+  return mapAssetRefs(config, (id) => (ids.has(id) ? null : id))
 }

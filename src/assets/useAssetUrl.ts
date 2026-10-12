@@ -1,23 +1,43 @@
-import { useEffect, useState } from 'react'
+import { createContext, createElement, useContext, useEffect, useState, type ReactNode } from 'react'
 import { useEditor } from '@/features/editor/store'
 import type { AssetId } from '@/domain/theme/types'
-import { objectUrls } from './objectUrls'
+import { ObjectUrlCache, objectUrls } from './objectUrls'
 
-/** Display URL for an asset of the open project; released (and revoked when unused) on unmount/change. */
+interface AssetSource {
+  blobs: ReadonlyMap<AssetId, Blob>
+  urls: ObjectUrlCache
+}
+
+const AssetSourceContext = createContext<AssetSource | null>(null)
+
+/**
+ * Supplies images for a preview that is not the open editor project (e.g. a shared theme).
+ * URLs come from a cache owned by this provider and are revoked when it unmounts.
+ */
+export function AssetProvider({ blobs, children }: { blobs: ReadonlyMap<AssetId, Blob>; children: ReactNode }) {
+  const [urls] = useState(() => new ObjectUrlCache())
+  useEffect(() => () => urls.clear(), [urls])
+  return createElement(AssetSourceContext.Provider, { value: { blobs, urls } }, children)
+}
+
+/** Display URL for an asset of the open project (or the nearest AssetProvider); released on unmount/change. */
 export function useAssetUrl(id: AssetId | null | undefined): string | null {
-  const record = useEditor((s) => (id ? s.assets.get(id) : undefined))
+  const source = useContext(AssetSourceContext)
+  const editorRecord = useEditor((s) => (id && !source ? s.assets.get(id) : undefined))
+  const blob = source ? (id ? source.blobs.get(id) : undefined) : editorRecord?.blob
+  const cache = source?.urls ?? objectUrls
   const [url, setUrl] = useState<string | null>(null)
   useEffect(() => {
     // Object URLs are an external resource: acquire/release must live in an effect.
-    if (!id || !record) {
+    if (!id || !blob) {
       // eslint-disable-next-line react/set-state-in-effect
       setUrl(null)
       return
     }
     // eslint-disable-next-line react/set-state-in-effect
-    setUrl(objectUrls.acquire(id, record.blob))
-    return () => objectUrls.release(id)
-  }, [id, record])
+    setUrl(cache.acquire(id, blob))
+    return () => cache.release(id)
+  }, [id, blob, cache])
   return url
 }
 

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import Dexie from 'dexie'
 import { importImage } from '@/assets/importImage'
 import { createNewProject } from '@/domain/theme/defaults'
 import type { ThemeProject } from '@/domain/theme/types'
@@ -157,5 +158,81 @@ describe('LocalProjectRepository', () => {
     // Nothing partially written.
     repos.db.projects.put = original
     expect(await repos.projects.get(p.id)).toBeNull()
+  })
+})
+
+describe('cloud-linked local copies', () => {
+  const record = (projectId: string, id: string, bytes: number[]) => ({
+    id,
+    projectId,
+    blob: new Blob([new Uint8Array(bytes)], { type: 'image/png' }),
+    mime: 'image/png' as const,
+    width: 1,
+    height: 1,
+    size: bytes.length,
+    hash: id.padEnd(64, '0'),
+    name: `${id}.png`,
+    createdAt: 1,
+    lastAttachedAt: 1,
+  })
+
+  it('upgrades v1 rows: cloud link fields default to null', async () => {
+    const legacy = new Dexie(`legacy-${++dbCount}`)
+    legacy.version(1).stores({ projects: 'id, updatedAt', assets: 'id, projectId, [projectId+hash]', thumbnails: 'projectId', meta: 'key' })
+    const p = createNewProject()
+    const { cloudOwnerId: _o, cloudRevisionId: _r, ...v1Row } = p
+    await legacy.table('projects').put({ ...v1Row, revision: 1 })
+    legacy.close()
+
+    const upgraded = createLocalRepositories(legacy.name)
+    const loaded = await upgraded.projects.get(p.id)
+    expect(loaded).toMatchObject({ cloudThemeId: null, cloudOwnerId: null, cloudRevisionId: null })
+    expect((await upgraded.projects.list())[0]).toMatchObject({ cloudThemeId: null, cloudOwnerId: null })
+    await upgraded.db.delete()
+  })
+
+  it('replaceFromCloud swaps the row and all assets atomically and is found by cloud id', async () => {
+    const p = createNewProject()
+    await repos.assets.put(record(p.id, 'ast_old', [1]))
+    await save({ ...p, config: { ...p.config, profile: { mode: 'image', imageAssetId: 'ast_old' } } })
+
+    const fromCloud: ThemeProject = {
+      ...p,
+      name: '클라우드 버전',
+      cloudThemeId: 'theme1',
+      cloudOwnerId: 'uid-a',
+      cloudRevisionId: 'r2',
+      config: { ...p.config, profile: { mode: 'image', imageAssetId: 'ast_new' } },
+    }
+    const saved = await repos.projects.replaceFromCloud(fromCloud, [record(p.id, 'ast_new', [2])], null)
+    expect(saved.revision).toBe(2)
+    expect(await repos.assets.get('ast_old')).toBeNull()
+    expect(await repos.assets.get('ast_new')).not.toBeNull()
+    expect((await repos.projects.findByCloudThemeId('theme1'))?.name).toBe('클라우드 버전')
+    expect(await repos.projects.findByCloudThemeId('nope')).toBeNull()
+    // A stale autosave of the replaced copy is rejected rather than overwriting the cloud version.
+    await expect(save({ ...p, revision: 1 })).rejects.toMatchObject({ kind: 'conflict' })
+  })
+
+  it('refuses assets that belong to another project', async () => {
+    const p = createNewProject()
+    await expect(repos.projects.replaceFromCloud(p, [record('lp_other', 'ast_x', [1])], null)).rejects.toBeInstanceOf(StorageError)
+    expect(await repos.projects.get(p.id)).toBeNull()
+  })
+
+  it('deleteByCloudOwner removes only that account’s copies and their assets', async () => {
+    const mine = { ...createNewProject(), cloudThemeId: 't1', cloudOwnerId: 'uid-a', cloudRevisionId: 'r1' }
+    const theirs = { ...createNewProject(), cloudThemeId: 't2', cloudOwnerId: 'uid-b', cloudRevisionId: 'r1' }
+    const local = createNewProject()
+    for (const p of [mine, theirs, local]) {
+      const id = `ast_${p.id.slice(3, 12)}`
+      await repos.assets.put(record(p.id, id, [3]))
+      await save({ ...p, config: { ...p.config, profile: { mode: 'image', imageAssetId: id } } })
+    }
+    expect(await repos.projects.deleteByCloudOwner('uid-a')).toBe(1)
+    const left = (await repos.projects.list()).map((p) => p.id).sort()
+    expect(left).toEqual([theirs.id, local.id].sort())
+    expect(await repos.assets.listMeta(mine.id)).toEqual([])
+    expect(await repos.assets.listMeta(theirs.id)).toHaveLength(1)
   })
 })

@@ -1,6 +1,6 @@
 import type { AssetRecord } from '@/assets/types'
 import { activeAssetIds, resolveTheme } from '@/domain/theme/resolve'
-import type { AssetId, ThemeProject } from '@/domain/theme/types'
+import type { AssetId, ThemeConfig, ThemeProject } from '@/domain/theme/types'
 import { ExportError, type ExportSnapshot } from '@/exporters/ktheme/buildPackage'
 import type { AssetRepository } from '@/repositories/types'
 
@@ -13,22 +13,42 @@ export async function exportProject(
   loaded: ReadonlyMap<AssetId, AssetRecord> | null,
   assetRepo: AssetRepository,
 ): Promise<string> {
-  const config = structuredClone(project.config)
+  const needed = activeAssetIds(resolveTheme(project.config))
+  const fromRepo = await assetRepo.getMany([...needed].filter((id) => !loaded?.has(id)))
+  const blobs = new Map<AssetId, Blob>()
+  for (const id of needed) {
+    const record = loaded?.get(id) ?? fromRepo.get(id)
+    if (record) blobs.set(id, record.blob)
+  }
+  return exportConfig({ name: project.name, exportThemeId: project.exportThemeId, revision: project.revision, config: project.config, blobs })
+}
+
+/**
+ * Builds and downloads a .ktheme from a config and its images (local project, the
+ * owner's cloud theme, or a shared theme). Same engine for all; nothing is uploaded.
+ */
+export async function exportConfig(input: {
+  name: string
+  exportThemeId: string
+  revision: number
+  config: ThemeConfig
+  blobs: ReadonlyMap<AssetId, Blob>
+}): Promise<string> {
+  const config = structuredClone(input.config)
   const needed = activeAssetIds(resolveTheme(config))
   const assets = new Map<AssetId, Blob>()
   const missing: AssetId[] = []
-  const fromRepo = await assetRepo.getMany([...needed].filter((id) => !loaded?.has(id)))
   for (const id of needed) {
-    const record = loaded?.get(id) ?? fromRepo.get(id)
-    if (record) assets.set(id, record.blob)
+    const blob = input.blobs.get(id)
+    if (blob) assets.set(id, blob)
     else missing.push(id)
   }
   if (missing.length) throw new ExportError('missing-asset', 'Assets missing', missing)
 
   const snapshot: ExportSnapshot = {
-    name: project.name,
-    exportThemeId: project.exportThemeId,
-    revision: project.revision,
+    name: input.name,
+    exportThemeId: input.exportThemeId,
+    revision: input.revision,
     config,
     assets,
   }
