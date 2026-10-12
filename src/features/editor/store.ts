@@ -7,6 +7,7 @@ import { createNewProject, DEFAULT_THEME_NAME, THEME_NAME_MAX_LENGTH } from '@/d
 import { collectAssetIds, removeAssetRefs } from '@/domain/theme/normalize'
 import type { AssetId, ElementKey, PreviewScreen, ThemeConfig, ThemeProject } from '@/domain/theme/types'
 import { storageErrorMessage } from '@/repositories/types'
+import { isVisibleLocally } from '../auth/session'
 import { ELEMENTS } from './elements'
 
 export type SaveState =
@@ -105,7 +106,8 @@ export const useEditor = create<EditorState>((set, get) => {
         if (id) {
           const project = await repos.projects.get(id)
           if (token !== loadToken) return
-          if (project) return await loadProject(project, true, token)
+          // A copy linked to another (or a signed-out) account is not shown: private cache protection.
+          if (project && isVisibleLocally(project.cloudOwnerId)) return await loadProject(project, true, token)
           if (target.kind === 'project') {
             set({ phase: 'not-found', project: null })
             return

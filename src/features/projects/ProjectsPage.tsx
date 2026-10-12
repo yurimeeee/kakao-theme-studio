@@ -1,42 +1,93 @@
-import { Download, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Cloud, Download, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { editorHref, navigate } from '@/app/router'
+import { cloudProjectsHref, editorHref, navigate, projectsHref } from '@/app/router'
 import { getRepositories } from '@/app/services'
 import { useBlobUrl } from '@/assets/useAssetUrl'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { IconButton } from '@/components/ui/IconButton'
+import { Segmented } from '@/components/ui/Segmented'
 import { Spinner } from '@/components/ui/Spinner'
 import { toast } from '@/components/ui/toast'
 import { formatModified } from '@/lib/format'
 import { storageErrorMessage, type ProjectSummary } from '@/repositories/types'
+import { openLogin } from '../auth/authDialog'
+import { isVisibleLocally, useSession } from '../auth/session'
+import { ThumbFrame } from '../cloud/CloudThumb'
 import { normalizeThemeName, useEditor } from '../editor/store'
 import { exportErrorMessage, exportProject } from '../export/exportProject'
+import { CloudThemesList } from './CloudThemesList'
 import { NameDialog } from './NameDialog'
 
 function Thumb({ blob }: { blob: Blob | null }) {
-  const url = useBlobUrl(blob)
+  return <ThumbFrame url={useBlobUrl(blob)} />
+}
+
+export function ProjectsPage({ tab }: { tab: 'local' | 'cloud' }) {
+  const status = useSession((s) => s.status)
+  const uid = useSession((s) => s.user?.uid ?? null)
+  const signedIn = status === 'signed-in'
   return (
-    <span className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-[18px] bg-surface" aria-hidden>
-      {url ? (
-        <img src={url} alt="" className="size-full object-cover" />
-      ) : (
-        <span className="flex flex-col gap-1.5">
-          <span className="h-2.5 w-7 rounded-full bg-hair" />
-          <span className="ml-3 h-2.5 w-7 rounded-full bg-faint/50" />
-        </span>
+    <div className="flex flex-col gap-8">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-[28px] font-bold tracking-[-0.01em] lg:text-[32px]">내 작업</h1>
+          <p className="mt-1 text-[14px] text-sub">
+            {tab === 'cloud' ? '이 계정에 저장된 테마예요. 어느 기기에서든 이어서 꾸밀 수 있어요.' : '이 브라우저에 보관된 테마예요. 이어서 꾸며 보세요.'}
+          </p>
+        </div>
+        <Button onClick={() => navigate('#/editor/new')} className="hidden shrink-0 sm:inline-flex">
+          <Plus className="size-4" aria-hidden />새 테마
+        </Button>
+      </div>
+      {status !== 'unavailable' && (
+        <Segmented
+          label="보관 위치"
+          hideLabel
+          value={tab}
+          options={[
+            { value: 'local', label: '이 기기' },
+            { value: 'cloud', label: '클라우드' },
+          ]}
+          onChange={(v) => navigate(v === 'cloud' ? cloudProjectsHref : projectsHref, true)}
+          className="w-full max-w-[260px]"
+        />
       )}
-    </span>
+      {tab === 'local' || status === 'unavailable' ? (
+        <LocalProjects />
+      ) : signedIn ? (
+        <CloudThemesList key={uid} />
+      ) : status === 'loading' ? (
+        <div className="flex min-h-40 items-center justify-center gap-3 text-sub" role="status">
+          <Spinner className="size-5" />
+          계정을 확인하고 있어요.
+        </div>
+      ) : (
+        <div className="flex flex-col items-center gap-2 rounded-[var(--radius-card)] bg-canvas px-6 py-14 text-center">
+          <p className="text-[17px] font-bold">로그인하면 클라우드 테마를 볼 수 있어요.</p>
+          <p className="text-[14px] text-sub">저장한 테마를 다른 기기에서도 이어서 꾸밀 수 있어요.</p>
+          <Button className="mt-4" onClick={() => openLogin()}>
+            로그인
+          </Button>
+        </div>
+      )}
+    </div>
   )
 }
 
-export function ProjectsPage() {
-  const [items, setItems] = useState<ProjectSummary[] | null>(null)
+function LocalProjects() {
+  const status = useSession((s) => s.status)
+  const uid = useSession((s) => s.user?.uid ?? null)
+  const [all, setItems] = useState<ProjectSummary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [exporting, setExporting] = useState<ProjectSummary | null>(null)
   const [deleting, setDeleting] = useState<ProjectSummary | null>(null)
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  // Copies linked to an account are listed only while that account is signed in.
+  const items = status === 'loading' ? null : (all?.filter((p) => isVisibleLocally(p.cloudOwnerId)) ?? null)
+  const hidden = all && items ? all.length - items.length : 0
 
   const load = useCallback(async () => {
     try {
@@ -53,7 +104,7 @@ export function ProjectsPage() {
     // Initial read from IndexedDB (external system); state is set after the await.
     // eslint-disable-next-line react/set-state-in-effect
     void load()
-  }, [load])
+  }, [load, uid])
 
   const confirmExport = async (name: string) => {
     const { projects, assets } = getRepositories()
@@ -89,17 +140,7 @@ export function ProjectsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-[28px] font-bold tracking-[-0.01em] lg:text-[32px]">내 작업</h1>
-          <p className="mt-1 text-[14px] text-sub">이 브라우저에 보관된 테마예요. 이어서 꾸며 보세요.</p>
-        </div>
-        <Button onClick={() => navigate('#/editor/new')} className="hidden shrink-0 sm:inline-flex">
-          <Plus className="size-4" aria-hidden />새 테마
-        </Button>
-      </div>
-
+    <>
       {items === null ? (
         <div className="flex min-h-40 items-center justify-center gap-3 text-sub" role="status">
           <Spinner className="size-5" />
@@ -128,7 +169,10 @@ export function ProjectsPage() {
                 <Thumb blob={p.thumbnail} />
                 <div className="min-w-0">
                   <p className="truncate text-[16px] font-semibold">{p.name}</p>
-                  <p className="text-[13px] text-sub">이 기기에 보관 · {formatModified(p.updatedAt)}</p>
+                  <p className="flex items-center gap-1.5 text-[13px] text-sub">
+                    {p.cloudThemeId && <Cloud className="size-3.5 shrink-0" aria-label="클라우드에 연결됨" />}
+                    이 기기에 보관 · {formatModified(p.updatedAt)}
+                  </p>
                 </div>
               </div>
               <div className="flex shrink-0 gap-2 pl-20 sm:pl-0">
@@ -147,6 +191,12 @@ export function ProjectsPage() {
             </li>
           ))}
         </ul>
+      )}
+
+      {hidden > 0 && (
+        <p className="text-center text-[13px] text-sub">
+          {status === 'signed-in' ? '다른 계정' : '로그인한 계정'}에 연결된 테마 {hidden}개는 {status === 'signed-in' ? '그 계정으로 로그인하면' : '로그인하면'} 보여요.
+        </p>
       )}
 
       {items && items.length > 0 && (
@@ -194,6 +244,6 @@ export function ProjectsPage() {
           </p>
         )}
       </Dialog>
-    </div>
+    </>
   )
 }
