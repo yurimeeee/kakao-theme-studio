@@ -13,6 +13,7 @@ import { initSession, onAccountChange, useSession } from '@/features/auth/sessio
 import { flushAutosave, installAutosave } from '@/features/editor/autosave'
 import { EditorPage } from '@/features/editor/EditorPage'
 import { useEditor } from '@/features/editor/store'
+import { GalleryPage } from '@/features/gallery/GalleryPage'
 import { ProjectsPage } from '@/features/projects/ProjectsPage'
 import { ThemeDetailPage } from '@/features/sharing/ThemeDetailPage'
 
@@ -78,7 +79,7 @@ export default function App() {
       case 'projects':
         return <ProjectsPage tab={route.tab} />
       case 'gallery':
-        return null
+        return <GalleryPage />
       case 'share':
         return <ThemeDetailPage shareId={route.shareId} />
       default:
