@@ -17,6 +17,9 @@ export default defineConfig({
             { name: 'react', test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
             { name: 'ui', test: /node_modules[\\/](@radix-ui|@floating-ui|lucide-react)[\\/]/ },
             { name: 'storage', test: /node_modules[\\/](dexie|zustand)[\\/]/ },
+            // Firebase is loaded lazily in two steps: auth at startup, data SDKs on first cloud use.
+            { name: 'firebase-auth', test: /node_modules[\\/](@firebase[\\/](app|auth|util|component|logger)|firebase[\\/](app|auth)|idb|tslib)[\\/]/ },
+            { name: 'firebase-data', test: /node_modules[\\/](@firebase[\\/](firestore|storage|functions|webchannel-wrapper)|firebase[\\/](firestore|storage|functions))[\\/]/ },
           ],
         },
       },
@@ -25,6 +28,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    // Emulator-backed tests run separately (pnpm test:cloud).
+    exclude: ['src/**/*.cloud.test.ts', 'node_modules/**'],
     setupFiles: ['src/test/setup.ts'],
   },
 })
