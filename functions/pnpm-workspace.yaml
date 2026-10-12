@@ -1,0 +1,5 @@
+# Cloud Build installs with pnpm 11, which fails on unreviewed dependency build scripts.
+# Neither script is needed at runtime: @firebase/util writes optional defaults, protobufjs only checks versions.
+allowBuilds:
+  '@firebase/util': false
+  protobufjs: false
