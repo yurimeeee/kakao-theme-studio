@@ -1,0 +1,103 @@
+rules_version = '2';
+
+// Kakao Theme Studio — Firestore security rules.
+//
+// themes/{themeId}            owner-only working copy (config + asset manifest + active revision)
+// themes/{themeId}/revisions  owner-only saved revisions
+// shares/{shareId}            published snapshot for 공개/링크 공개. Anyone can `get` a ready share
+//                             (the random shareId is the link); only 공개 shares can be listed.
+//                             비공개 = no share document at all.
+// downloadMarks/{markId}      server only (download de-duplication)
+//
+// downloadCount is written only by Cloud Functions (Admin SDK bypasses these rules).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+    function uid() {
+      return request.auth.uid;
+    }
+    function validName(n) {
+      return n is string && n.size() > 0 && n.size() <= 30;
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && uid() == userId;
+      allow create, update: if signedIn() && uid() == userId
+        && request.resource.data.keys().hasOnly(['displayName', 'createdAt', 'updatedAt'])
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() <= 40;
+      allow delete: if false;
+    }
+
+    match /themes/{themeId} {
+      function validTheme(d) {
+        return d.ownerId == uid()
+          && validName(d.name)
+          && d.visibility in ['private', 'public', 'unlisted']
+          && (d.shareId == null || (d.shareId is string && d.shareId.size() <= 40))
+          && d.activeRevisionId is string
+          && d.schemaVersion is int
+          && d.config is map
+          && d.assetManifest is map
+          && d.exportThemeId is string;
+      }
+
+      allow get, list: if signedIn() && resource.data.ownerId == uid();
+      allow create: if signedIn() && validTheme(request.resource.data);
+      allow update: if signedIn()
+        && resource.data.ownerId == uid()
+        && validTheme(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if signedIn() && resource.data.ownerId == uid();
+
+      match /revisions/{revisionId} {
+        // get checks the parent so that reading a revision that no longer exists is allowed for the owner.
+        allow get: if signedIn() && get(/databases/$(database)/documents/themes/$(themeId)).data.ownerId == uid();
+        allow list: if signedIn() && resource.data.ownerId == uid();
+        // getAfter: the first revision is written in the same transaction that creates the theme.
+        allow create: if signedIn()
+          && request.resource.data.ownerId == uid()
+          && getAfter(/databases/$(database)/documents/themes/$(themeId)).data.ownerId == uid();
+        allow update: if false;
+        allow delete: if signedIn() && resource.data.ownerId == uid();
+      }
+    }
+
+    match /shares/{shareId} {
+      function isOwner() {
+        return signedIn() && resource.data.ownerId == uid();
+      }
+      function validShare(d) {
+        return d.ownerId == uid()
+          && d.visibility in ['public', 'unlisted']
+          && d.status in ['preparing', 'ready']
+          && validName(d.name)
+          && d.ownerName is string && d.ownerName.size() <= 40
+          && d.searchTokens is list && d.searchTokens.size() <= 500
+          && d.config is map
+          && d.assetManifest is map
+          && d.downloadCount is int;
+      }
+
+      allow get: if resource.data.status == 'ready' || isOwner();
+      // Gallery queries must filter visibility == 'public' and status == 'ready'.
+      allow list: if (resource.data.visibility == 'public' && resource.data.status == 'ready') || isOwner();
+      allow create: if signedIn()
+        && validShare(request.resource.data)
+        && request.resource.data.downloadCount == 0
+        && get(/databases/$(database)/documents/themes/$(request.resource.data.themeId)).data.ownerId == uid();
+      allow update: if isOwner()
+        && validShare(request.resource.data)
+        && request.resource.data.themeId == resource.data.themeId
+        && request.resource.data.downloadCount == resource.data.downloadCount
+        && request.resource.data.publishedAt == resource.data.publishedAt;
+      allow delete: if isOwner();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

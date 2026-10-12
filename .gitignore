@@ -27,3 +27,15 @@ dist-ssr
 test-results
 playwright-report
 e2e/.downloads
+
+# Firebase
+functions/lib
+.firebase
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+.secret.local
+functions/.env.local
+functions/.secret.local
+dist-emulator
+dist-local

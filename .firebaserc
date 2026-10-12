@@ -1,0 +1,6 @@
+{
+  "projects": {
+    "default": "demo-kakao-theme-studio",
+    "prod": "kakao-theme-studio"
+  }
+}

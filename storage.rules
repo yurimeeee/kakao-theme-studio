@@ -1,0 +1,41 @@
+rules_version = '2';
+
+// Kakao Theme Studio — Storage security rules.
+//
+// users/{uid}/themes/{themeId}/assets/{hash}.{ext}     원본 이미지 (owner only)
+// users/{uid}/themes/{themeId}/thumbnails/{rev}.png    썸네일 (owner only)
+// shares/{shareId}/...                                 published copies; readable while the share
+//                                                      document is ready, so 비공개 전환/링크 변경
+//                                                      (= share document deleted) blocks access at once.
+// No getDownloadURL tokens are used by the app; reads go through these rules.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function imageUpload() {
+      return request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/(png|jpeg|webp)');
+    }
+
+    match /users/{userId}/themes/{themeId}/{allPaths=**} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create, update: if request.auth != null && request.auth.uid == userId && imageUpload();
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /shares/{shareId}/{allPaths=**} {
+      function share() {
+        return firestore.get(/databases/(default)/documents/shares/$(shareId)).data;
+      }
+      function isShareOwner() {
+        return request.auth != null && share().ownerId == request.auth.uid;
+      }
+      allow get: if share().status == 'ready' || isShareOwner();
+      allow list: if isShareOwner();
+      allow create, update: if isShareOwner() && imageUpload();
+      allow delete: if isShareOwner();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
