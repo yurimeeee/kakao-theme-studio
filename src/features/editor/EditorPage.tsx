@@ -1,118 +1,29 @@
 import { AlertCircle, Cloud, Download, Save, Share2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Button } from '@/components/ui/Button'
-import { Dialog } from '@/components/ui/Dialog'
-import { CloudError, cloudErrorMessage } from '@/cloud/errors'
-import { VISIBILITIES, VISIBILITY_DESCRIPTIONS, VISIBILITY_LABELS, type Visibility } from '@/cloud/model'
 import { projectsHref, type Route } from '@/app/router'
-import { getRepositories } from '@/app/services'
-import { cn } from '@/components/ui/cn'
+import { Button } from '@/components/ui/Button'
 import { IconButton } from '@/components/ui/IconButton'
 import { Segmented } from '@/components/ui/Segmented'
 import { Sheet } from '@/components/ui/Sheet'
-import { Spinner } from '@/components/ui/Spinner'
+import { LoadingState } from '@/components/ui/States'
 import { toast } from '@/components/ui/toast'
+import { VISIBILITIES, VISIBILITY_DESCRIPTIONS, VISIBILITY_LABELS } from '@/cloud/model'
 import type { ElementKey, PreviewScreen } from '@/domain/theme/types'
-import { formatSavedTime } from '@/lib/format'
 import { useMediaQuery } from '@/lib/useMediaQuery'
-import { exportErrorMessage, exportProject } from '../export/exportProject'
 import { openLogin } from '../auth/authDialog'
 import { useSession } from '../auth/session'
-import { openCloudTheme, saveOpenProjectToCloud } from '../cloud/cloudSync'
+import { ExportDialog } from '../export/ExportDialog'
 import { ThemePreview } from '../preview/ThemePreview'
-import { ShareDialog } from '../sharing/ShareDialog'
 import { NameDialog } from '../projects/NameDialog'
+import { ShareDialog } from '../sharing/ShareDialog'
 import { flushAutosave } from './autosave'
-import { ELEMENT_ORDER, ELEMENTS, SCREEN_LABELS } from './elements'
+import { ConflictDialog } from './ConflictDialog'
+import { ElementChips, ElementNav } from './ElementNav'
+import { ELEMENTS, SCREEN_OPTIONS } from './elements'
 import { ElementPanel } from './panels/panels'
-import { useEditor, type SaveState } from './store'
-
-const SCREENS = (Object.keys(SCREEN_LABELS) as PreviewScreen[]).map((value) => ({ value, label: SCREEN_LABELS[value] }))
-
-function SaveStatus({ state }: { state: SaveState }) {
-  const text = (() => {
-    switch (state.kind) {
-      case 'idle':
-        return '아직 이 기기에 보관하지 않았어요'
-      case 'pending':
-        return '변경사항을 보관하고 있어요'
-      case 'saving':
-        return '저장 중…'
-      case 'saved':
-        return `이 기기에 보관됨 · ${formatSavedTime(state.at)}`
-      case 'error':
-        return state.message
-    }
-  })()
-  return (
-    <div className="flex min-h-6 flex-wrap items-center gap-2 text-[13px]" aria-live="polite" data-testid="save-status" data-state={state.kind}>
-      {state.kind === 'error' && <AlertCircle className="size-4 text-danger" aria-hidden />}
-      <span className={state.kind === 'error' ? 'text-danger' : 'text-sub'}>{text}</span>
-      {state.kind === 'error' && (
-        <button type="button" onClick={() => void flushAutosave()} className="min-h-8 rounded-full bg-canvas px-3 text-[12px] font-medium text-ink">
-          다시 시도
-        </button>
-      )}
-    </div>
-  )
-}
-
-function ElementNav({ selected, onSelect }: { selected: ElementKey; onSelect: (k: ElementKey) => void }) {
-  const group = (g: 'theme' | 'common', title: string) => (
-    <div className="flex flex-col gap-1">
-      <p className="px-3 pb-1 text-[12px] text-faint">{title}</p>
-      {ELEMENT_ORDER.filter((k) => ELEMENTS[k].group === g).map((k) => {
-        const { icon: Icon, label } = ELEMENTS[k]
-        return (
-          <button
-            key={k}
-            type="button"
-            onClick={() => onSelect(k)}
-            aria-current={selected === k ? 'true' : undefined}
-            className={cn(
-              'flex min-h-12 items-center gap-3 rounded-[18px] px-3 text-left text-[14px] transition-colors',
-              selected === k ? 'bg-canvas font-semibold text-ink' : 'text-ink-soft hover:bg-canvas',
-            )}
-          >
-            <Icon className="size-[18px] shrink-0 text-sub" aria-hidden />
-            {label}
-          </button>
-        )
-      })}
-    </div>
-  )
-  return (
-    <nav aria-label="편집 요소" className="flex flex-col gap-6">
-      {group('theme', '테마 구성')}
-      {group('common', '공통 리소스')}
-    </nav>
-  )
-}
-
-function ElementChips({ selected, onSelect }: { selected: ElementKey | null; onSelect: (k: ElementKey) => void }) {
-  return (
-    <nav aria-label="편집 요소" className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
-      {ELEMENT_ORDER.map((k) => {
-        const { icon: Icon, label } = ELEMENTS[k]
-        return (
-          <button
-            key={k}
-            type="button"
-            onClick={() => onSelect(k)}
-            aria-haspopup="dialog"
-            className={cn(
-              'flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 text-[14px] font-medium transition-colors',
-              selected === k ? 'bg-ink text-white' : 'bg-canvas text-ink hover:bg-canvas-strong',
-            )}
-          >
-            <Icon className="size-4" aria-hidden />
-            {label}
-          </button>
-        )
-      })}
-    </nav>
-  )
-}
+import { SaveStatus } from './SaveStatus'
+import { useEditor } from './store'
+import { useSaveFlow } from './useSaveFlow'
 
 /** The only part of the page that subscribes to the config. */
 function EditorPreview({ screen }: { screen: PreviewScreen }) {
@@ -131,17 +42,15 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
   const saveState = useEditor((s) => s.saveState)
   const selected = useEditor((s) => s.selected)
   const screen = useEditor((s) => s.screen)
-  const { open, select, setScreen, rename, dismissNotice } = useEditor.getState()
+  const { open, select, setScreen, dismissNotice } = useEditor.getState()
   const isDesktop = useMediaQuery('(min-width: 1024px)')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [dialog, setDialog] = useState<'save' | 'export' | null>(null)
   const sessionStatus = useSession((s) => s.status)
   const signedIn = sessionStatus === 'signed-in'
   const cloudAvailable = sessionStatus !== 'unavailable'
-  const [visibility, setVisibility] = useState<Visibility>('private')
-  const [conflict, setConflict] = useState<'conflict' | 'gone' | null>(null)
-  const [conflictBusy, setConflictBusy] = useState<'cloud' | 'new' | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
+  const flow = useSaveFlow({ signedIn, cloudThemeId })
 
   // Load the requested project. Always flush pending local writes first so the
   // previous project's edits are not lost and the new one never races a stale save.
@@ -166,10 +75,7 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
 
   if (phase === 'loading' || phase === 'idle' || !sessionReady) {
     return (
-      <div className="flex min-h-[50dvh] flex-col items-center justify-center gap-3 text-sub" role="status">
-        <Spinner className="size-6" />
-        테마를 불러오고 있어요.
-      </div>
+      <LoadingState size="page">테마를 불러오고 있어요.</LoadingState>
     )
   }
   if (phase === 'not-found' || phase === 'failed' || !hasProject) {
@@ -195,69 +101,6 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
   }
 
   const info = ELEMENTS[selected]
-
-  const isConflict = (e: unknown): e is CloudError => e instanceof CloudError && (e.kind === 'conflict' || e.kind === 'gone')
-
-  const confirmSave = async (name: string) => {
-    rename(name)
-    if (!(await flushAutosave({ explicit: true }))) {
-      const s = useEditor.getState().saveState
-      throw new Error(s.kind === 'error' ? s.message : '저장하지 못했어요. 다시 시도해 주세요.')
-    }
-    if (!signedIn) {
-      toast('이 기기에 저장했어요.')
-      return
-    }
-    // Signed in: the explicit 저장 is the only moment work is uploaded.
-    try {
-      const out = await saveOpenProjectToCloud({ visibility: cloudThemeId ? undefined : visibility })
-      toast(out.publishWarning ?? '클라우드에 저장했어요.')
-    } catch (e) {
-      if (isConflict(e)) return setConflict(e.kind as 'conflict' | 'gone')
-      throw new Error(`이 기기에는 저장했어요. ${cloudErrorMessage(e)}`)
-    }
-  }
-
-  const confirmExport = async (name: string) => {
-    rename(name)
-    await flushAutosave()
-    if (signedIn) {
-      // Signed-in export saves to the cloud first and does not silently fall back to local-only.
-      try {
-        await saveOpenProjectToCloud()
-      } catch (e) {
-        if (isConflict(e)) return setConflict(e.kind as 'conflict' | 'gone')
-        throw new Error(cloudErrorMessage(e))
-      }
-    }
-    const s = useEditor.getState()
-    try {
-      await exportProject(s.project!, s.assets, getRepositories().assets)
-    } catch (e) {
-      throw new Error(exportErrorMessage(e))
-    }
-    toast('테마 파일을 내려받았어요.')
-  }
-
-  const resolveConflict = async (choice: 'cloud' | 'new') => {
-    if (conflictBusy) return
-    setConflictBusy(choice)
-    try {
-      if (choice === 'cloud') {
-        const r = await openCloudTheme(cloudThemeId!, { replace: true })
-        await open({ kind: 'project', id: r.localId })
-        toast('클라우드 버전을 불러왔어요.')
-      } else {
-        await saveOpenProjectToCloud({ asNewTheme: true, visibility: 'private' })
-        toast('새 테마로 클라우드에 저장했어요.')
-      }
-      setConflict(null)
-    } catch (e) {
-      toast(cloudErrorMessage(e))
-    } finally {
-      setConflictBusy(null)
-    }
-  }
 
   const onShare = () => {
     if (!signedIn) return openLogin('공유하려면 로그인해 주세요.')
@@ -308,7 +151,7 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
         )}
 
         <section aria-label="미리보기" className="flex min-w-0 flex-col items-center gap-4 rounded-[var(--radius-card)] bg-canvas px-2 py-5 sm:px-6 lg:sticky lg:top-6 lg:self-start lg:py-6">
-          <Segmented label="미리보기 화면" hideLabel size="sm" value={screen} options={SCREENS} onChange={setScreen} className="w-full max-w-[360px]" />
+          <Segmented label="미리보기 화면" hideLabel size="sm" value={screen} options={SCREEN_OPTIONS} onChange={setScreen} className="w-full max-w-[360px]" />
           <div className="w-full">
             <EditorPreview screen={screen} />
           </div>
@@ -347,12 +190,12 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
         initialName={projectName}
         confirmLabel="저장"
         busyLabel="저장 중…"
-        onConfirm={confirmSave}
+        onConfirm={flow.confirmSave}
       >
         {signedIn && !cloudThemeId && (
           <div className="flex flex-col gap-2">
-            <Segmented label="공개 범위" value={visibility} options={VISIBILITIES.map((v) => ({ value: v, label: VISIBILITY_LABELS[v] }))} onChange={setVisibility} />
-            <p className="text-[12px] leading-relaxed text-sub">{VISIBILITY_DESCRIPTIONS[visibility]}</p>
+            <Segmented label="공개 범위" value={flow.visibility} options={VISIBILITIES.map((v) => ({ value: v, label: VISIBILITY_LABELS[v] }))} onChange={flow.setVisibility} />
+            <p className="text-[12px] leading-relaxed text-sub">{VISIBILITY_DESCRIPTIONS[flow.visibility]}</p>
           </div>
         )}
         {signedIn && cloudThemeId && (
@@ -372,54 +215,19 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
           </Button>
         )}
       </NameDialog>
-      <NameDialog
+      <ExportDialog
         open={dialog === 'export'}
         onOpenChange={(o) => !o && setDialog(null)}
-        title="테마 내보내기"
-        description="아이폰 카카오톡용 .ktheme 파일을 이 브라우저에서 만들어 내려받아요."
         initialName={projectName}
-        confirmLabel="내보내기"
-        busyLabel="테마를 준비하고 있어요."
-        onConfirm={confirmExport}
-      >
-        <p className="rounded-[var(--radius-field)] bg-canvas px-4 py-3 text-[13px] leading-relaxed text-sub">
-          {signedIn
-            ? '내보내기 전에 이미지와 설정을 클라우드에 저장해요. .ktheme 파일은 이 브라우저에서 만들고 서버에 보관하지 않아요.'
-            : '카카오톡 앱에서의 실제 적용은 아직 기기 검증 중이에요. 파일은 서버에 올리지 않아요.'}
-        </p>
-      </NameDialog>
+        onConfirm={flow.confirmExport}
+        note={signedIn ? '내보내기 전에 이미지와 설정을 클라우드에 저장해요. .ktheme 파일은 이 브라우저에서 만들고 서버에 보관하지 않아요.' : undefined}
+      />
 
       {signedIn && (
         <ShareDialog themeId={shareOpen ? cloudThemeId : null} themeName={projectName} onOpenChange={setShareOpen} />
       )}
 
-      <Dialog
-        open={conflict !== null}
-        onOpenChange={(o) => !o && setConflict(null)}
-        title={conflict === 'gone' ? '클라우드에서 삭제된 테마예요' : '다른 곳에서 먼저 저장됐어요'}
-        description={
-          conflict === 'gone'
-            ? '이 기기의 작업은 그대로 있어요. 새 테마로 클라우드에 저장할 수 있어요.'
-            : '다른 기기나 창에서 이 테마를 먼저 저장했어요. 덮어쓰지 않았어요.'
-        }
-        locked={conflictBusy !== null}
-        footer={
-          <>
-            {conflict === 'conflict' && (
-              <Button variant="soft" onClick={() => void resolveConflict('cloud')} busy={conflictBusy === 'cloud'} disabled={conflictBusy !== null}>
-                클라우드 버전 불러오기
-              </Button>
-            )}
-            <Button onClick={() => void resolveConflict('new')} busy={conflictBusy === 'new'} disabled={conflictBusy !== null}>
-              새 테마로 저장
-            </Button>
-          </>
-        }
-      >
-        {conflict === 'conflict' && (
-          <p className="text-[13px] leading-relaxed text-sub">클라우드 버전을 불러오면 이 기기에서 바꾼 내용은 사라져요. 새 테마로 저장하면 둘 다 남아요.</p>
-        )}
-      </Dialog>
+      <ConflictDialog conflict={flow.conflict} busy={flow.conflictBusy} onResolve={(c) => void flow.resolveConflict(c)} onDismiss={flow.dismissConflict} />
     </div>
   )
 }

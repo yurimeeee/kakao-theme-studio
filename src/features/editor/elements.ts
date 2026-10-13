@@ -30,3 +30,6 @@ export const SCREEN_LABELS: Record<PreviewScreen, string> = {
   chatroom: '대화',
   passcode: '암호 입력',
 }
+
+/** Options for the preview screen switcher. */
+export const SCREEN_OPTIONS = (Object.keys(SCREEN_LABELS) as PreviewScreen[]).map((value) => ({ value, label: SCREEN_LABELS[value] }))

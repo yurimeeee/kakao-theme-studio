@@ -4,7 +4,7 @@ import { navigate, shareHref } from '@/app/router'
 import { Button } from '@/components/ui/Button'
 import { IconButton } from '@/components/ui/IconButton'
 import { Segmented } from '@/components/ui/Segmented'
-import { Spinner } from '@/components/ui/Spinner'
+import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
 import { toast } from '@/components/ui/toast'
 import { copyText } from '@/lib/clipboard'
 import { isCloudConfigured } from '@/cloud/config'
@@ -139,23 +139,14 @@ export function GalleryPage() {
       <Segmented label="정렬" hideLabel value={sort} options={SORTS} onChange={setSort} className="w-full max-w-[260px]" />
 
       {items === null ? (
-        <div className="flex min-h-40 items-center justify-center gap-3 text-sub" role="status">
-          <Spinner className="size-5" />
-          테마를 불러오고 있어요.
-        </div>
+        <LoadingState>테마를 불러오고 있어요.</LoadingState>
       ) : error ? (
-        <div className="flex flex-col items-center gap-3 rounded-[var(--radius-card)] bg-canvas px-6 py-12 text-center" role="alert">
-          <p className="font-semibold">테마를 불러오지 못했어요.</p>
-          <p className="text-[14px] text-sub">네트워크 연결을 확인한 뒤 다시 시도해 주세요.</p>
-          <Button variant="surface" onClick={() => void reload()}>
-            다시 시도
-          </Button>
-        </div>
+        <ErrorState message="테마를 불러오지 못했어요." detail="네트워크 연결을 확인한 뒤 다시 시도해 주세요." onRetry={() => void reload()} />
       ) : items.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-[var(--radius-card)] bg-canvas px-6 py-14 text-center">
-          <p className="text-[17px] font-bold">{search.trim() ? '검색 결과가 없어요.' : '아직 공개된 테마가 없어요.'}</p>
-          <p className="text-[14px] text-sub">{search.trim() ? '테마 이름의 일부로 다시 검색해 보세요.' : '테마를 만들고 공개하면 여기에 보여요.'}</p>
-        </div>
+        <EmptyState
+          title={search.trim() ? '검색 결과가 없어요.' : '아직 공개된 테마가 없어요.'}
+          description={search.trim() ? '테마 이름의 일부로 다시 검색해 보세요.' : '테마를 만들고 공개하면 여기에 보여요.'}
+        />
       ) : (
         <>
           <ul className="mx-auto flex w-full max-w-[780px] flex-col gap-3" aria-label="공개 테마 목록">

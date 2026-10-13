@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { IconButton } from '@/components/ui/IconButton'
 import { Segmented } from '@/components/ui/Segmented'
-import { Spinner } from '@/components/ui/Spinner'
+import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
 import { toast } from '@/components/ui/toast'
 import { formatModified } from '@/lib/format'
 import { storageErrorMessage, type ProjectSummary } from '@/repositories/types'
@@ -15,9 +15,9 @@ import { openLogin } from '../auth/authDialog'
 import { isVisibleLocally, useSession } from '../auth/session'
 import { ThumbFrame } from '../cloud/CloudThumb'
 import { normalizeThemeName, useEditor } from '../editor/store'
+import { ExportDialog } from '../export/ExportDialog'
 import { exportErrorMessage, exportProject } from '../export/exportProject'
 import { CloudThemesList } from './CloudThemesList'
-import { NameDialog } from './NameDialog'
 
 function Thumb({ blob }: { blob: Blob | null }) {
   return <ThumbFrame url={useBlobUrl(blob)} />
@@ -58,18 +58,11 @@ export function ProjectsPage({ tab }: { tab: 'local' | 'cloud' }) {
       ) : signedIn ? (
         <CloudThemesList key={uid} />
       ) : status === 'loading' ? (
-        <div className="flex min-h-40 items-center justify-center gap-3 text-sub" role="status">
-          <Spinner className="size-5" />
-          계정을 확인하고 있어요.
-        </div>
+        <LoadingState>계정을 확인하고 있어요.</LoadingState>
       ) : (
-        <div className="flex flex-col items-center gap-2 rounded-[var(--radius-card)] bg-canvas px-6 py-14 text-center">
-          <p className="text-[17px] font-bold">로그인하면 클라우드 테마를 볼 수 있어요.</p>
-          <p className="text-[14px] text-sub">저장한 테마를 다른 기기에서도 이어서 꾸밀 수 있어요.</p>
-          <Button className="mt-4" onClick={() => openLogin()}>
-            로그인
-          </Button>
-        </div>
+        <EmptyState title="로그인하면 클라우드 테마를 볼 수 있어요." description="저장한 테마를 다른 기기에서도 이어서 꾸밀 수 있어요.">
+          <Button onClick={() => openLogin()}>로그인</Button>
+        </EmptyState>
       )}
     </div>
   )
@@ -142,25 +135,15 @@ function LocalProjects() {
   return (
     <>
       {items === null ? (
-        <div className="flex min-h-40 items-center justify-center gap-3 text-sub" role="status">
-          <Spinner className="size-5" />
-          목록을 불러오고 있어요.
-        </div>
+        <LoadingState>목록을 불러오고 있어요.</LoadingState>
       ) : error ? (
-        <div className="flex flex-col items-center gap-3 rounded-[var(--radius-card)] bg-canvas px-6 py-12 text-center" role="alert">
-          <p className="font-semibold">{error}</p>
-          <Button variant="surface" onClick={() => void load()}>
-            다시 시도
-          </Button>
-        </div>
+        <ErrorState message={error} onRetry={() => void load()} />
       ) : items.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-[var(--radius-card)] bg-canvas px-6 py-14 text-center">
-          <p className="text-[17px] font-bold">아직 만든 테마가 없어요.</p>
-          <p className="text-[14px] text-sub">색상이나 이미지로 나만의 테마를 만들어 보세요.</p>
-          <Button className="mt-4" onClick={() => navigate('#/editor/new')}>
+        <EmptyState title="아직 만든 테마가 없어요." description="색상이나 이미지로 나만의 테마를 만들어 보세요.">
+          <Button onClick={() => navigate('#/editor/new')}>
             <Plus className="size-4" aria-hidden />새 테마 만들기
           </Button>
-        </div>
+        </EmptyState>
       ) : (
         <ul className="mx-auto flex w-full max-w-[780px] flex-col gap-3" aria-label="테마 목록">
           {items.map((p) => (
@@ -205,20 +188,7 @@ function LocalProjects() {
         </div>
       )}
 
-      <NameDialog
-        open={exporting !== null}
-        onOpenChange={(o) => !o && setExporting(null)}
-        title="테마 내보내기"
-        description="아이폰 카카오톡용 .ktheme 파일을 이 브라우저에서 만들어 내려받아요."
-        initialName={exporting?.name ?? ''}
-        confirmLabel="내보내기"
-        busyLabel="테마를 준비하고 있어요."
-        onConfirm={confirmExport}
-      >
-        <p className="rounded-[var(--radius-field)] bg-canvas px-4 py-3 text-[13px] leading-relaxed text-sub">
-          카카오톡 앱에서의 실제 적용은 아직 기기 검증 중이에요. 파일은 서버에 올리지 않아요.
-        </p>
-      </NameDialog>
+      <ExportDialog open={exporting !== null} onOpenChange={(o) => !o && setExporting(null)} initialName={exporting?.name ?? ''} onConfirm={confirmExport} />
 
       <Dialog
         open={deleting !== null}

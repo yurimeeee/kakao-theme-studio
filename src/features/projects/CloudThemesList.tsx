@@ -4,7 +4,7 @@ import { editorHref, navigate } from '@/app/router'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { IconButton } from '@/components/ui/IconButton'
-import { Spinner } from '@/components/ui/Spinner'
+import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
 import { toast } from '@/components/ui/toast'
 import { cloudErrorMessage } from '@/cloud/errors'
 import { VISIBILITY_LABELS } from '@/cloud/model'
@@ -113,28 +113,17 @@ export function CloudThemesList() {
 
   if (items === null) {
     return (
-      <div className="flex min-h-40 items-center justify-center gap-3 text-sub" role="status">
-        <Spinner className="size-5" />
-        클라우드 테마를 불러오고 있어요.
-      </div>
+      <LoadingState>클라우드 테마를 불러오고 있어요.</LoadingState>
     )
   }
   if (error) {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-[var(--radius-card)] bg-canvas px-6 py-12 text-center" role="alert">
-        <p className="font-semibold">{error}</p>
-        <Button variant="surface" onClick={() => void load()}>
-          다시 시도
-        </Button>
-      </div>
+      <ErrorState message={error} onRetry={() => void load()} />
     )
   }
   if (items.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-2 rounded-[var(--radius-card)] bg-canvas px-6 py-14 text-center">
-        <p className="text-[17px] font-bold">클라우드에 저장한 테마가 없어요.</p>
-        <p className="text-[14px] text-sub">에디터에서 저장하면 이 계정에 보관돼요.</p>
-      </div>
+      <EmptyState title="클라우드에 저장한 테마가 없어요." description="에디터에서 저장하면 이 계정에 보관돼요." />
     )
   }
 

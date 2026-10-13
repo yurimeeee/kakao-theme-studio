@@ -4,7 +4,7 @@ import { galleryHref } from '@/app/router'
 import { AssetProvider, type PreviewAsset } from '@/assets/useAssetUrl'
 import { Button } from '@/components/ui/Button'
 import { Segmented } from '@/components/ui/Segmented'
-import { Spinner } from '@/components/ui/Spinner'
+import { LoadingState } from '@/components/ui/States'
 import { toast } from '@/components/ui/toast'
 import { copyText } from '@/lib/clipboard'
 import { isCloudConfigured } from '@/cloud/config'
@@ -13,11 +13,9 @@ import type { AssetId, PreviewScreen } from '@/domain/theme/types'
 import type { SharedTheme } from '@/repositories/cloud/shares'
 import { loadCloud } from '../auth/session'
 import { exportSharedTheme, shareUrl } from '../cloud/cloudSync'
-import { SCREEN_LABELS } from '../editor/elements'
+import { SCREEN_OPTIONS } from '../editor/elements'
 import { exportErrorMessage } from '../export/exportProject'
 import { ThemePreview } from '../preview/ThemePreview'
-
-const SCREENS = (Object.keys(SCREEN_LABELS) as PreviewScreen[]).map((value) => ({ value, label: SCREEN_LABELS[value] }))
 
 type State =
   | { kind: 'loading' }
@@ -71,10 +69,7 @@ export function ThemeDetailPage({ shareId }: { shareId: string }) {
   if (!isCloudConfigured || state.kind === 'not-found') return <NotViewable />
   if (state.kind === 'loading') {
     return (
-      <div className="flex min-h-[50dvh] items-center justify-center gap-3 text-sub" role="status">
-        <Spinner className="size-6" />
-        테마를 불러오고 있어요.
-      </div>
+      <LoadingState size="page">테마를 불러오고 있어요.</LoadingState>
     )
   }
   if (state.kind === 'error') {
@@ -122,7 +117,7 @@ export function ThemeDetailPage({ shareId }: { shareId: string }) {
       )}
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-12">
         <section aria-label="미리보기" className="flex min-w-0 flex-col items-center gap-4 rounded-[var(--radius-card)] bg-canvas px-2 py-5 sm:px-6 lg:py-6">
-          <Segmented label="미리보기 화면" hideLabel size="sm" value={screen} options={SCREENS} onChange={setScreen} className="w-full max-w-[360px]" />
+          <Segmented label="미리보기 화면" hideLabel size="sm" value={screen} options={SCREEN_OPTIONS} onChange={setScreen} className="w-full max-w-[360px]" />
           <AssetProvider assets={preview}>
             <ThemePreview config={share.config} screen={screen} />
           </AssetProvider>
