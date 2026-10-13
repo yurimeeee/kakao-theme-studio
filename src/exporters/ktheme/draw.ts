@@ -81,14 +81,22 @@ export function drawDefaultProfile(ctx: Ctx, size: number, bg: HexColor, fg: Hex
   ctx.fill()
 }
 
-/** Theme list icon / project thumbnail: background + one received and one sent pill. */
+/**
+ * Theme list icon / project thumbnail: background + one received and one sent pill.
+ * A user icon replaces the drawing (center-cropped; the background color shows through transparency).
+ */
 export function drawThemeIcon(
   ctx: Ctx,
   size: number,
   colors: { background: HexColor; receive: HexColor; send: HexColor },
   backgroundImage?: Decoded | null,
+  customIcon?: Decoded | null,
 ): void {
   fillSolid(ctx, size, size, colors.background)
+  if (customIcon) {
+    drawCover(ctx, customIcon, size, size)
+    return
+  }
   if (backgroundImage) drawCover(ctx, backgroundImage, size, size)
   const pillH = size * 0.17
   ctx.fillStyle = colors.receive

@@ -97,6 +97,29 @@ describe('createKthemeArchive', () => {
     }
   })
 
+  it('uses an uploaded theme icon for commonIcoTheme.png instead of the drawn one', async () => {
+    const icon = fakePng(512, 400)
+    const bg = fakePng(2000, 3000)
+    const raster = new FakeRasterizer()
+    const decoded: Blob[] = []
+    const decode = raster.decode.bind(raster)
+    raster.decode = (blob) => (decoded.push(blob), decode(blob))
+    const config = createDefaultConfig()
+    config.background.chatroom = { mode: 'image', color: '#000000', imageAssetId: 'ast_bg' }
+    config.themeIcon = { mode: 'image', imageAssetId: 'ast_icon' }
+    const archive = await createKthemeArchive(snapshot(config, [['ast_icon', icon], ['ast_bg', bg]]), raster)
+    const zip = await unzip(archive.blob)
+    expect(zip.file('Images/commonIcoTheme.png')).not.toBeNull()
+    expect(decoded).toContain(icon)
+    expect(raster.surfaces).toContainEqual({ width: 200, height: 200 })
+
+    // Default mode keeps the uploaded icon referenced but does not use it.
+    config.themeIcon.mode = 'default'
+    decoded.length = 0
+    await createKthemeArchive(snapshot(config, [['ast_icon', icon], ['ast_bg', bg]]), raster)
+    expect(decoded).not.toContain(icon)
+  })
+
   it('fails with missing-asset instead of exporting a broken reference', async () => {
     const config = createDefaultConfig()
     config.profile = { mode: 'image', imageAssetId: 'ast_gone' }

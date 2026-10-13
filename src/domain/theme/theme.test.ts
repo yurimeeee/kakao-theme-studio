@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createDefaultConfig, createNewProject } from './defaults'
-import { collectAssetIds, migrateConfig, normalizeConfig, UnsupportedSchemaError } from './normalize'
+import { collectAssetIds, mapAssetRefs, migrateConfig, normalizeConfig, UnsupportedSchemaError } from './normalize'
 import { activeAssetIds, resolveTheme } from './resolve'
 
 describe('normalizeConfig / migrateConfig', () => {
@@ -42,6 +42,21 @@ describe('asset references', () => {
     expect(collectAssetIds(c).has('ast_keepme')).toBe(true)
     // …but the exporter/preview do not use it while in color mode.
     expect(activeAssetIds(resolveTheme(c)).has('ast_keepme')).toBe(false)
+  })
+})
+
+describe('theme icon', () => {
+  it('round-trips through normalize and is active only in image mode', () => {
+    const c = createDefaultConfig()
+    expect(normalizeConfig({}).themeIcon).toEqual({ mode: 'default', imageAssetId: null })
+    c.themeIcon = { mode: 'image', imageAssetId: 'ast_icon' }
+    expect(normalizeConfig(JSON.parse(JSON.stringify(c))).themeIcon).toEqual(c.themeIcon)
+    expect(resolveTheme(c).themeIconAssetId).toBe('ast_icon')
+    expect(activeAssetIds(resolveTheme(c)).has('ast_icon')).toBe(true)
+    c.themeIcon.mode = 'default'
+    expect(resolveTheme(c).themeIconAssetId).toBeNull()
+    expect(collectAssetIds(c).has('ast_icon')).toBe(true)
+    expect(mapAssetRefs(c, () => null).themeIcon.imageAssetId).toBeNull()
   })
 })
 

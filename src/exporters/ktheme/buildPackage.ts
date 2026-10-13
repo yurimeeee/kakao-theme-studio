@@ -186,12 +186,13 @@ export async function buildThemePackage(snapshot: ExportSnapshot, raster: Raster
 
     // Theme list icon (no scale suffix, same as reference).
     const icon = raster.surface(THEME_ICON_PX, THEME_ICON_PX)
-    const iconBg = theme.chatroom.background.imageAssetId ? await decode(theme.chatroom.background.imageAssetId) : null
+    const customIcon = theme.themeIconAssetId ? await decode(theme.themeIconAssetId) : null
+    const iconBg = !customIcon && theme.chatroom.background.imageAssetId ? await decode(theme.chatroom.background.imageAssetId) : null
     drawThemeIcon(icon.ctx, THEME_ICON_PX, {
       background: theme.chatroom.background.color,
       receive: theme.bubbles.receive.color,
       send: theme.bubbles.send.color,
-    }, iconBg)
+    }, iconBg, customIcon)
     await encode(`${IMAGES_DIR}/${THEME_ICON_FILE}`, icon)
 
     const model: ThemeCssModel = {

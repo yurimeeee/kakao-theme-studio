@@ -117,6 +117,7 @@ export function normalizeConfig(raw: unknown): ThemeConfig {
   const b = obj(o.bubbles)
   const hi = obj(o.headerInput)
   const pr = obj(o.profile)
+  const ti = obj(o.themeIcon)
   const t = obj(o.tabs)
   const icons = obj(t.icons)
   const pc = obj(o.passcode)
@@ -149,6 +150,10 @@ export function normalizeConfig(raw: unknown): ThemeConfig {
     profile: {
       mode: oneOf(pr.mode, ['default', 'image'] as const, d.profile.mode),
       imageAssetId: asset(pr.imageAssetId),
+    },
+    themeIcon: {
+      mode: oneOf(ti.mode, ['default', 'image'] as const, d.themeIcon.mode),
+      imageAssetId: asset(ti.imageAssetId),
     },
     tabs: {
       mode: oneOf(t.mode, ['default', 'image'] as const, d.tabs.mode),
@@ -193,6 +198,7 @@ export function collectAssetIds(config: ThemeConfig): Set<AssetId> {
     add(bub.advanced.groupImageAssetId)
   }
   add(config.profile.imageAssetId)
+  add(config.themeIcon.imageAssetId)
   for (const k of TAB_KEYS) {
     add(config.tabs.icons[k].normal)
     add(config.tabs.icons[k].selected)
@@ -214,6 +220,7 @@ export function mapAssetRefs(config: ThemeConfig, map: (id: AssetId) => AssetId 
     b.advanced.groupImageAssetId = m(b.advanced.groupImageAssetId)
   }
   next.profile.imageAssetId = m(next.profile.imageAssetId)
+  next.themeIcon.imageAssetId = m(next.themeIcon.imageAssetId)
   for (const k of TAB_KEYS) {
     next.tabs.icons[k].normal = m(next.tabs.icons[k].normal)
     next.tabs.icons[k].selected = m(next.tabs.icons[k].selected)

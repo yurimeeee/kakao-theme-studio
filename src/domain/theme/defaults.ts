@@ -52,6 +52,7 @@ export function createDefaultConfig(): ThemeConfig {
       buttonColor: '#8a8a92',
     },
     profile: { mode: 'default', imageAssetId: null },
+    themeIcon: { mode: 'default', imageAssetId: null },
     tabs: {
       mode: 'default',
       barColor: null,

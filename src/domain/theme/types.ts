@@ -84,6 +84,12 @@ export interface ProfileSetting {
   imageAssetId: AssetId | null
 }
 
+/** Theme list icon (commonIcoTheme.png) and project thumbnail. `default` draws it from the theme colors. */
+export interface ThemeIconSetting {
+  mode: 'default' | 'image'
+  imageAssetId: AssetId | null
+}
+
 /**
  * Editable tabs, in current KakaoTalk bottom-bar order. Each one has a CSS key observed
  * in a reference archive (see docs/ktheme-format.md §6); unverified tabs stay out.
@@ -135,6 +141,7 @@ export interface ThemeConfig {
   }
   headerInput: HeaderInputSetting
   profile: ProfileSetting
+  themeIcon: ThemeIconSetting
   tabs: TabsSetting
   passcode: PasscodeSetting
 }
@@ -173,6 +180,7 @@ export type ElementKey =
   | 'bubbleReceive'
   | 'headerInput'
   | 'profile'
+  | 'themeIcon'
   | 'tabs'
   | 'passcode'
 

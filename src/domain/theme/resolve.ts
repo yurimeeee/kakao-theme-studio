@@ -61,6 +61,8 @@ export interface ResolvedTheme {
   bubbles: { send: ResolvedBubble; receive: ResolvedBubble }
   /** null → use the generated built-in default profile resource. */
   profileImageAssetId: AssetId | null
+  /** null → draw the theme icon from the chat room background and bubble colors. */
+  themeIconAssetId: AssetId | null
   tabs: {
     barColor: HexColor | null
     /** Only tabs with an uploaded normal image. Missing selected → normal reused. */
@@ -171,6 +173,7 @@ export function resolveTheme(config: ThemeConfig): ResolvedTheme {
       receive: resolveBubble(config.bubbles.receive, palette.background, palette.text),
     },
     profileImageAssetId: config.profile.mode === 'image' ? config.profile.imageAssetId : null,
+    themeIconAssetId: config.themeIcon.mode === 'image' ? config.themeIcon.imageAssetId : null,
     tabs: {
       barColor: config.tabs.barColor,
       icons,
@@ -206,6 +209,7 @@ export function activeAssetIds(theme: ResolvedTheme): Set<AssetId> {
   add(theme.bubbles.receive.imageAssetId)
   add(theme.bubbles.receive.groupImageAssetId)
   add(theme.profileImageAssetId)
+  add(theme.themeIconAssetId)
   for (const pair of Object.values(theme.tabs.icons)) {
     add(pair.normal)
     add(pair.selected)

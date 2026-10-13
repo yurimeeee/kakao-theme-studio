@@ -1,9 +1,12 @@
+import { useEffect, useState } from 'react'
+import { useBlobUrl } from '@/assets/useAssetUrl'
 import { ColorField } from '@/components/ui/ColorField'
 import { NEUTRAL_SWATCHES } from '@/components/ui/swatches'
 import { FieldGroup, Notice } from '@/components/ui/Section'
 import { Segmented } from '@/components/ui/Segmented'
 import { resolveThemeCached } from '@/domain/theme/resolve'
 import { TAB_KEYS, type ElementKey, type HexColor, type TabKey } from '@/domain/theme/types'
+import { renderThumbnail, thumbnailKey } from '../../projects/thumbnail'
 import { ImageField } from '../ImageField'
 import { useEditor } from '../store'
 import { BubblePanel } from './BubblePanel'
@@ -137,6 +140,56 @@ function ProfilePanel() {
         )}
       </FieldGroup>
       <Notice>프로필 사진이 없는 친구에게 표시돼요. 사진이 있는 친구의 프로필은 유지돼요.</Notice>
+    </div>
+  )
+}
+
+function ThemeIconPanel() {
+  const config = useConfig()
+  const { themeIcon } = config
+  const update = useUpdate()
+  const assets = useEditor((s) => s.assets)
+  const key = thumbnailKey(config)
+  const [preview, setPreview] = useState<Blob | null>(null)
+  useEffect(() => {
+    let alive = true
+    renderThumbnail(config, assets)
+      .then((blob) => alive && setPreview(blob))
+      .catch(() => alive && setPreview(null))
+    return () => {
+      alive = false
+    }
+    // Redraw only when something the icon depends on changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, assets])
+  const previewUrl = useBlobUrl(preview)
+  return (
+    <div className="flex flex-col gap-6">
+      <FieldGroup>
+        <Segmented
+          label="테마 아이콘 방식"
+          hideLabel
+          value={themeIcon.mode}
+          options={modeOptions(['default', 'image'] as const)}
+          onChange={(mode) => update((c) => void (c.themeIcon.mode = mode))}
+        />
+        {themeIcon.mode === 'default' ? (
+          <p className="text-[13px] text-sub">대화방 배경과 말풍선 색으로 아이콘을 만들어요.</p>
+        ) : (
+          <ImageField
+            label="테마 아이콘 이미지"
+            assetId={themeIcon.imageAssetId}
+            onChange={(id) => update((c) => void (c.themeIcon.imageAssetId = id))}
+            hint="정사각형으로 가운데를 잘라 200×200px로 넣어요. 200×200px 이상을 권장해요."
+          />
+        )}
+      </FieldGroup>
+      <FieldGroup title="미리보기">
+        <div className="size-24 overflow-hidden rounded-[22px] bg-canvas">
+          {previewUrl && <img src={previewUrl} alt="테마 아이콘 미리보기" className="size-full object-cover" />}
+        </div>
+      </FieldGroup>
+      <Notice>카카오톡 테마 목록, 내 작업, 갤러리에 이 아이콘이 보여요. 이미지를 고르지 않으면 기본 아이콘을 써요.</Notice>
     </div>
   )
 }
@@ -276,6 +329,8 @@ export function ElementPanel({ element }: { element: ElementKey }) {
       return <HeaderInputPanel />
     case 'profile':
       return <ProfilePanel />
+    case 'themeIcon':
+      return <ThemeIconPanel />
     case 'tabs':
       return <TabsPanel />
     case 'passcode':
