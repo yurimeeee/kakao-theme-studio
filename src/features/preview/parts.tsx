@@ -4,7 +4,7 @@ import { useAssetSize, useAssetUrl } from '@/assets/useAssetUrl'
 import { mix } from '@/domain/theme/color'
 import type { ResolvedBubble, ResolvedTheme } from '@/domain/theme/resolve'
 import type { HexColor, TabKey } from '@/domain/theme/types'
-import { effectiveRadius, imageBubbleGeometry } from '@/exporters/ktheme/bubbleGeometry'
+import { effectiveRadius, imageBubbleGeometry, pxPerPt } from '@/exporters/ktheme/bubbleGeometry'
 
 export function StatusBar({ color }: { color: HexColor }) {
   return (
@@ -98,11 +98,16 @@ export function HomeIndicator({ color }: { color: HexColor }) {
   )
 }
 
-/** Bubble preview. Generated bubbles use the same radius rule as the exporter; image bubbles use border-image with the export stretch point. */
-export function Bubble({ bubble, children }: { bubble: ResolvedBubble; children: ReactNode }) {
-  const url = useAssetUrl(bubble.imageAssetId)
-  const size = useAssetSize(bubble.imageAssetId)
-  const { insets } = bubble
+/**
+ * Bubble preview. Generated bubbles use the same radius rule as the exporter; image bubbles use
+ * border-image with the export stretch point. `group` = 연속 메시지 (its own image and layout).
+ */
+export function Bubble({ bubble, group, children }: { bubble: ResolvedBubble; group?: boolean; children: ReactNode }) {
+  const imageId = group ? (bubble.groupImageAssetId ?? bubble.imageAssetId) : bubble.imageAssetId
+  const layout = group ? bubble.group : bubble
+  const url = useAssetUrl(imageId)
+  const size = useAssetSize(imageId)
+  const { insets } = layout
   const base: CSSProperties = {
     padding: `${insets.top}px ${insets.right}px ${insets.bottom}px ${insets.left}px`,
     color: bubble.textColor,
@@ -112,7 +117,8 @@ export function Bubble({ bubble, children }: { bubble: ResolvedBubble; children:
     overflowWrap: 'anywhere',
   }
   if (bubble.kind === 'image' && url && size) {
-    const g = imageBubbleGeometry(size.width, size.height, bubble.stretch)
+    const g = imageBubbleGeometry(size.width, size.height, layout.stretch, layout.imageSize)
+    const k = pxPerPt(layout.imageSize)
     const top = g.stretch.y
     const left = g.stretch.x
     const bottom = Math.max(0, g.heightPt - g.stretch.y - 1)
@@ -124,7 +130,7 @@ export function Bubble({ bubble, children }: { bubble: ResolvedBubble; children:
           borderStyle: 'solid',
           borderWidth: 0,
           borderImageSource: `url("${url}")`,
-          borderImageSlice: `${top * 3} ${right * 3} ${bottom * 3} ${left * 3} fill`,
+          borderImageSlice: `${top * k} ${right * k} ${bottom * k} ${left * k} fill`,
           borderImageWidth: `${top}px ${right}px ${bottom}px ${left}px`,
           borderImageRepeat: 'stretch',
           minWidth: g.widthPt,

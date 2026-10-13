@@ -1,10 +1,11 @@
 import { isHexColor, normalizeHex } from './color'
-import { BUBBLE_RADIUS_MAX, BUBBLE_RADIUS_MIN, createDefaultConfig } from './defaults'
+import { BUBBLE_IMAGE_SIZE_MAX, BUBBLE_IMAGE_SIZE_MIN, BUBBLE_RADIUS_MAX, BUBBLE_RADIUS_MIN, createDefaultConfig } from './defaults'
 import { isAssetId } from './ids'
 import {
   CURRENT_SCHEMA_VERSION,
   TAB_KEYS,
   type AssetId,
+  type BubbleImageLayout,
   type BubbleSetting,
   type EdgeInsets,
   type FillSetting,
@@ -59,21 +60,35 @@ function fill(v: unknown, d: FillSetting): FillSetting {
   }
 }
 
+/** Image bubbles may pad text by up to their own size (large decorations). */
+const INSET_LIMIT = 600
+
 function insets(v: unknown, d: EdgeInsets): EdgeInsets {
   const o = obj(v)
   return {
-    top: num(o.top, d.top, 0, 60),
-    left: num(o.left, d.left, 0, 60),
-    bottom: num(o.bottom, d.bottom, 0, 60),
-    right: num(o.right, d.right, 0, 60),
+    top: num(o.top, d.top, 0, INSET_LIMIT),
+    left: num(o.left, d.left, 0, INSET_LIMIT),
+    bottom: num(o.bottom, d.bottom, 0, INSET_LIMIT),
+    right: num(o.right, d.right, 0, INSET_LIMIT),
   }
 }
+
+function stretch(v: unknown): BubbleImageLayout['stretch'] {
+  const st = obj(v)
+  return v != null && typeof st.x === 'number' && typeof st.y === 'number' ? { x: num(st.x, 0, 0, 2000), y: num(st.y, 0, 0, 2000) } : null
+}
+
+const imageSize = (v: unknown, fallback: number) => num(v, fallback, BUBBLE_IMAGE_SIZE_MIN, BUBBLE_IMAGE_SIZE_MAX)
 
 function bubble(v: unknown, d: BubbleSetting): BubbleSetting {
   const o = obj(v)
   const adv = obj(o.advanced)
-  const st = obj(adv.stretch)
-  const hasStretch = adv.stretch != null && typeof st.x === 'number' && typeof st.y === 'number'
+  const main = {
+    insets: insets(adv.insets, d.advanced.insets),
+    stretch: stretch(adv.stretch),
+    imageSize: imageSize(adv.imageSize, d.advanced.imageSize),
+  }
+  const g = obj(adv.group)
   return {
     mode: oneOf(o.mode, ['default', 'color', 'image'] as const, d.mode),
     color: color(o.color, d.color),
@@ -82,9 +97,12 @@ function bubble(v: unknown, d: BubbleSetting): BubbleSetting {
     shape: oneOf(o.shape, ['square', 'rounded', 'capsule'] as const, d.shape),
     radius: num(o.radius, d.radius, BUBBLE_RADIUS_MIN, BUBBLE_RADIUS_MAX),
     advanced: {
-      insets: insets(adv.insets, d.advanced.insets),
-      stretch: hasStretch ? { x: num(st.x, 0, 0, 2000), y: num(st.y, 0, 0, 2000) } : null,
+      ...main,
       groupImageAssetId: asset(adv.groupImageAssetId),
+      group:
+        adv.group != null && typeof adv.group === 'object'
+          ? { insets: insets(g.insets, main.insets), stretch: stretch(g.stretch), imageSize: imageSize(g.imageSize, main.imageSize) }
+          : null,
     },
   }
 }

@@ -37,6 +37,19 @@ export interface EdgeInsets {
   right: number
 }
 
+/** Where an image bubble stretches and where its text sits, in pt of the exported bubble. */
+export interface BubbleImageLayout {
+  /** Text padding inside the bubble, pt. */
+  insets: EdgeInsets
+  /**
+   * Stretch point for image bubbles (pt from top-left, iOS cap semantics).
+   * `null` = image center.
+   */
+  stretch: { x: number; y: number } | null
+  /** Display size in % of the image read as @3x artwork (100 = px / 3 pt). */
+  imageSize: number
+}
+
 export interface BubbleSetting {
   mode: FillMode
   color: HexColor
@@ -46,16 +59,12 @@ export interface BubbleSetting {
   shape: BubbleShape
   /** Corner radius in pt for generated bubbles (ignored for capsule). */
   radius: number
-  advanced: {
-    /** Text padding inside the bubble, pt. */
-    insets: EdgeInsets
-    /**
-     * Stretch point for image bubbles (pt from top-left, iOS cap semantics).
-     * `null` = image center.
-     */
-    stretch: { x: number; y: number } | null
+  /** `insets` also pads generated bubbles; `stretch` and `imageSize` apply to image bubbles. */
+  advanced: BubbleImageLayout & {
     /** Optional separate image for 연속 메시지; `null` reuses the main image. */
     groupImageAssetId: AssetId | null
+    /** Layout of the 연속 메시지 image; `null` follows the first-message layout. */
+    group: BubbleImageLayout | null
   }
 }
 

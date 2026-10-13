@@ -13,6 +13,10 @@ export const THEME_NAME_MAX_LENGTH = 30
 export const DEFAULT_BUBBLE_INSETS = { top: 9, left: 12, bottom: 9, right: 12 }
 export const BUBBLE_RADIUS_MIN = 0
 export const BUBBLE_RADIUS_MAX = 20
+/** Image bubble display size, % of the image read as @3x (see BubbleImageLayout.imageSize). */
+export const BUBBLE_IMAGE_SIZE_DEFAULT = 100
+export const BUBBLE_IMAGE_SIZE_MIN = 20
+export const BUBBLE_IMAGE_SIZE_MAX = 300
 
 function bubble(color: string): BubbleSetting {
   return {
@@ -22,7 +26,13 @@ function bubble(color: string): BubbleSetting {
     imageAssetId: null,
     shape: 'rounded',
     radius: 16,
-    advanced: { insets: { ...DEFAULT_BUBBLE_INSETS }, stretch: null, groupImageAssetId: null },
+    advanced: {
+      insets: { ...DEFAULT_BUBBLE_INSETS },
+      stretch: null,
+      imageSize: BUBBLE_IMAGE_SIZE_DEFAULT,
+      groupImageAssetId: null,
+      group: null,
+    },
   }
 }
 

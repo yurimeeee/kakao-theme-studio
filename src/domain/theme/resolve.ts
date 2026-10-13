@@ -2,8 +2,8 @@ import { mix, readableOn } from './color'
 import {
   TAB_KEYS,
   type AssetId,
+  type BubbleImageLayout,
   type BubbleSetting,
-  type EdgeInsets,
   type FillSetting,
   type HexColor,
   type TabKey,
@@ -25,16 +25,16 @@ export interface ResolvedFill {
   imageAssetId: AssetId | null
 }
 
-export interface ResolvedBubble {
+export interface ResolvedBubble extends BubbleImageLayout {
   kind: 'generated' | 'image'
   color: HexColor
   textColor: HexColor
   shape: BubbleSetting['shape']
   radius: number
-  insets: EdgeInsets
   imageAssetId: AssetId | null
   groupImageAssetId: AssetId | null
-  stretch: { x: number; y: number } | null
+  /** 연속 메시지 layout: its own when a separate image has one, otherwise the first-message layout. */
+  group: BubbleImageLayout
 }
 
 export interface ResolvedTabIcon {
@@ -88,19 +88,26 @@ function resolveFill(fill: FillSetting, fallbackColor: HexColor): ResolvedFill {
   return { color: fallbackColor, imageAssetId: null }
 }
 
+const copyLayout = (l: BubbleImageLayout): BubbleImageLayout => ({
+  insets: { ...l.insets },
+  stretch: l.stretch ? { ...l.stretch } : null,
+  imageSize: l.imageSize,
+})
+
 function resolveBubble(b: BubbleSetting, defaultColor: HexColor, paletteText: HexColor): ResolvedBubble {
   const color = b.mode === 'color' ? b.color : defaultColor
   const isImage = b.mode === 'image' && b.imageAssetId !== null
+  const main = copyLayout(b.advanced)
   return {
     kind: isImage ? 'image' : 'generated',
     color,
     textColor: b.textColor ?? (isImage ? paletteText : readableOn(color, paletteText, 4.5)),
     shape: b.shape,
     radius: b.shape === 'square' ? 0 : b.radius,
-    insets: { ...b.advanced.insets },
+    ...main,
     imageAssetId: isImage ? b.imageAssetId : null,
     groupImageAssetId: isImage ? b.advanced.groupImageAssetId : null,
-    stretch: b.advanced.stretch ? { ...b.advanced.stretch } : null,
+    group: isImage && b.advanced.groupImageAssetId && b.advanced.group ? copyLayout(b.advanced.group) : copyLayout(main),
   }
 }
 

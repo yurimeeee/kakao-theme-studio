@@ -259,16 +259,16 @@ export async function buildThemePackage(snapshot: ExportSnapshot, raster: Raster
     if (b.kind === 'image' && b.imageAssetId) {
       const main = await decode(b.imageAssetId)
       const group = b.groupImageAssetId ? await decode(b.groupImageAssetId) : main
-      const g1 = imageBubbleGeometry(main.width, main.height, b.stretch)
-      const g2 = group === main ? g1 : imageBubbleGeometry(group.width, group.height, b.stretch)
-      for (const [suffix, img, dark] of [
-        ['01', main, false],
-        ['01Selected', main, true],
-        ['02', group, false],
-        ['02Selected', group, true],
+      const g1 = imageBubbleGeometry(main.width, main.height, b.stretch, b.imageSize)
+      const g2 = imageBubbleGeometry(group.width, group.height, b.group.stretch, b.group.imageSize)
+      for (const [suffix, img, geo, dark] of [
+        ['01', main, g1, false],
+        ['01Selected', main, g1, true],
+        ['02', group, g2, false],
+        ['02Selected', group, g2, true],
       ] as const) {
         for (const scale of SCALES) {
-          const s = raster.surface((img.width * scale) / 3, (img.height * scale) / 3)
+          const s = raster.surface(geo.widthPt * scale, geo.heightPt * scale)
           drawScaled(s.ctx, img, s.width, s.height)
           if (dark) darkenDrawn(s.ctx, s.width, s.height, SELECTED_DARKEN)
           await encode(imagePath(`${base}${suffix}`, scale), s)
@@ -282,7 +282,7 @@ export async function buildThemePackage(snapshot: ExportSnapshot, raster: Raster
         stretch: g1.stretch,
         groupStretch: g2.stretch,
         insets: b.insets,
-        groupInsets: b.insets,
+        groupInsets: b.group.insets,
         ...textColors,
       }
     }

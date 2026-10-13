@@ -45,6 +45,35 @@ describe('asset references', () => {
   })
 })
 
+describe('bubble image layout', () => {
+  it('defaults old configs to 100% with no separate 연속 메시지 layout and clamps sizes', () => {
+    const old = createDefaultConfig() as unknown as { bubbles: { send: { advanced: Record<string, unknown> } } }
+    delete old.bubbles.send.advanced.imageSize
+    delete old.bubbles.send.advanced.group
+    const n = normalizeConfig(old)
+    expect(n.bubbles.send.advanced).toMatchObject({ imageSize: 100, group: null })
+    const c = createDefaultConfig()
+    c.bubbles.send.advanced.imageSize = 9999
+    c.bubbles.send.advanced.group = { insets: { top: 1, left: 2, bottom: 3, right: 4 }, stretch: { x: 1, y: 2 }, imageSize: 1 }
+    const m = normalizeConfig(JSON.parse(JSON.stringify(c)))
+    expect(m.bubbles.send.advanced.imageSize).toBe(300)
+    expect(m.bubbles.send.advanced.group).toEqual({ insets: { top: 1, left: 2, bottom: 3, right: 4 }, stretch: { x: 1, y: 2 }, imageSize: 20 })
+  })
+
+  it('resolves 연속 메시지 layout only for a separate image', () => {
+    const c = createDefaultConfig()
+    const b = c.bubbles.receive
+    b.mode = 'image'
+    b.imageAssetId = 'ast_a'
+    b.advanced.group = { insets: { top: 1, left: 1, bottom: 1, right: 1 }, stretch: null, imageSize: 50 }
+    expect(resolveTheme(c).bubbles.receive.group.imageSize).toBe(100)
+    b.advanced.groupImageAssetId = 'ast_b'
+    expect(resolveTheme(c).bubbles.receive.group.imageSize).toBe(50)
+    b.advanced.group = null
+    expect(resolveTheme(c).bubbles.receive.group).toEqual({ insets: b.advanced.insets, stretch: null, imageSize: 100 })
+  })
+})
+
 describe('theme icon', () => {
   it('round-trips through normalize and is active only in image mode', () => {
     const c = createDefaultConfig()

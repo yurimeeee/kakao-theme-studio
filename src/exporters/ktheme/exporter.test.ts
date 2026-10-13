@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { createDefaultConfig } from '@/domain/theme/defaults'
 import type { ThemeConfig } from '@/domain/theme/types'
 import { FakeRasterizer, fakePng } from '@/test/fakeRasterizer'
-import { fitBubbleImage, generatedBubbleGeometry, imageBubbleGeometry, type Pixels } from './bubbleGeometry'
+import { fitBubbleImage, flatLines, generatedBubbleGeometry, imageBubbleGeometry, isFlatSlot, rescaleLayout, type Pixels } from './bubbleGeometry'
 import { buildThemePackage, ExportError, type ExportSnapshot } from './buildPackage'
 import { cssString, parseThemeCss, referencedImages } from './css'
 import { createKthemeArchive, toKthemeFileName } from './exportTheme'
@@ -15,6 +15,20 @@ function snapshot(config: ThemeConfig = createDefaultConfig(), assets: [string, 
 
 async function unzip(blob: Blob) {
   return JSZip.loadAsync(new Uint8Array(await blob.arrayBuffer()))
+}
+
+/** @3x bubble: transparent margin, 2px border, flat fill, a decoration hanging over the top edge. */
+function fitPixels(): Pixels {
+  const w = 150, h = 120
+  const data = new Uint8ClampedArray(w * h * 4)
+  const put = (x: number, y: number, c: [number, number, number, number]) => data.set(c, (y * w + x) * 4)
+  for (let y = 30; y < 114; y++)
+    for (let x = 6; x < 144; x++) {
+      const edge = y < 32 || y > 111 || x < 8 || x > 141
+      put(x, y, edge ? [80, 50, 40, 255] : [248, 213, 218, 255])
+    }
+  for (let y = 10; y < 45; y++) for (let x = 100; x < 130; x++) put(x, y, [255, 255, 255, 255]) // decoration
+  return { width: w, height: h, data }
 }
 
 describe('createKthemeArchive', () => {
@@ -74,6 +88,38 @@ describe('createKthemeArchive', () => {
     expect(tab.get('-ios-friends-normal-icon-image')).toBe("'maintabIcoFriends.png'")
     expect(tab.get('-ios-friends-selected-icon-image')).toBe("'maintabIcoFriendsSelected.png'")
     expect(tab.has('-ios-chats-normal-icon-image')).toBe(false)
+  })
+
+  it('sizes image bubbles by display size and gives 연속 메시지 its own layout', async () => {
+    const config = createDefaultConfig()
+    const send = config.bubbles.send
+    send.mode = 'image'
+    send.imageAssetId = 'ast_main'
+    send.advanced = {
+      ...send.advanced,
+      imageSize: 50,
+      stretch: { x: 10, y: 8 },
+      insets: { top: 4, left: 5, bottom: 6, right: 7 },
+      groupImageAssetId: 'ast_group',
+      group: { stretch: { x: 3, y: 2.5 }, insets: { top: 1, left: 2, bottom: 3, right: 4 }, imageSize: 100 },
+    }
+    const raster = new FakeRasterizer()
+    const pkg = await buildThemePackage(snapshot(config, [['ast_main', fakePng(150, 120)], ['ast_group', fakePng(60, 45)]]), raster)
+    // 150×120px at 50% = 25×20pt → @3x 75×60; group at 100% = 20×15pt → @3x 60×45.
+    expect(raster.surfaces).toContainEqual({ width: 75, height: 60 })
+    expect(raster.surfaces).toContainEqual({ width: 60, height: 45 })
+    const block = parseThemeCss(pkg.css).get('MessageCellStyle-Send')!
+    expect(block.get('-ios-background-image')).toBe("'chatroomBubbleSend01.png' 10px 8px")
+    expect(block.get('-ios-group-background-image')).toBe("'chatroomBubbleSend02.png' 3px 2.5px")
+    expect(block.get('-ios-title-edgeinsets')).toMatch(/^4px 5px 6px 7px/)
+    expect(block.get('-ios-group-title-edgeinsets')).toBe('1px 2px 3px 4px')
+    expect(await validatePackage(pkg.files)).toEqual([])
+
+    // Without a separate image the group layout is ignored: 02 repeats the first message.
+    send.advanced.groupImageAssetId = null
+    const same = parseThemeCss((await buildThemePackage(snapshot(config, [['ast_main', fakePng(150, 120)]]), new FakeRasterizer())).css).get('MessageCellStyle-Send')!
+    expect(same.get('-ios-group-background-image')).toBe("'chatroomBubbleSend02.png' 10px 8px")
+    expect(same.get('-ios-group-title-edgeinsets')).toBe('4px 5px 6px 7px')
   })
 
   it('writes the 지금 tab to now + openchats and the shopping tab to shopping', async () => {
@@ -216,6 +262,27 @@ describe('bubble geometry', () => {
     expect(imageBubbleGeometry(150, 120, { x: 999, y: -5 }).stretch).toEqual({ x: 49, y: 0 })
     expect(imageBubbleGeometry(150, 120, null).stretch).toEqual({ x: 25, y: 20 })
   })
+
+  it('scales the whole image with the display size', () => {
+    expect(imageBubbleGeometry(150, 120, null, 50)).toMatchObject({ widthPt: 25, heightPt: 20 })
+    expect(imageBubbleGeometry(150, 120, null, 200)).toMatchObject({ widthPt: 100, heightPt: 80 })
+  })
+
+  it('keeps stretch point and insets on the same image spot when resized', () => {
+    const layout = { insets: { top: 10, left: 7, bottom: 9, right: 12 }, stretch: { x: 16, y: 13 }, imageSize: 100 }
+    expect(rescaleLayout(layout, 100, 50)).toEqual({ ...layout, insets: { top: 5, left: 3.5, bottom: 4.5, right: 6 }, stretch: { x: 8, y: 6.5 } })
+    expect(rescaleLayout({ ...layout, stretch: null }, 100, 200).stretch).toBeNull()
+  })
+
+  it('flags a stretch slot that crosses a decoration', () => {
+    const { rows, cols } = flatLines(fitPixels())
+    // Rows 50..110 are plain fill; a slot crossing the top border (px 31 → 32) is not.
+    expect(isFlatSlot(rows, 25, 3)).toBe(true) // px 75..77
+    expect(isFlatSlot(rows, 10, 3)).toBe(false) // px 30..32, border edge
+    expect(isFlatSlot(cols, 10, 3)).toBe(true) // px 30..32, left of the decoration
+    expect(isFlatSlot(cols, 33, 3)).toBe(false) // px 99..101, decoration edge at 100
+    expect(isFlatSlot(rows, 75, 1)).toBe(true) // 300% size: 1 px slot
+  })
 })
 
 describe('names', () => {
@@ -245,19 +312,7 @@ describe('reference inventory guard', () => {
 })
 
 describe('fitBubbleImage', () => {
-  /** @3x bubble: transparent margin, 2px border, flat fill, a decoration hanging over the top edge. */
-  function decorated(): Pixels {
-    const w = 150, h = 120
-    const data = new Uint8ClampedArray(w * h * 4)
-    const put = (x: number, y: number, c: [number, number, number, number]) => data.set(c, (y * w + x) * 4)
-    for (let y = 30; y < 114; y++)
-      for (let x = 6; x < 144; x++) {
-        const edge = y < 32 || y > 111 || x < 8 || x > 141
-        put(x, y, edge ? [80, 50, 40, 255] : [248, 213, 218, 255])
-      }
-    for (let y = 10; y < 45; y++) for (let x = 100; x < 130; x++) put(x, y, [255, 255, 255, 255]) // decoration
-    return { width: w, height: h, data }
-  }
+  const decorated = fitPixels
 
   it('puts the stretch point in a flat band and keeps text below decorations', () => {
     const fit = fitBubbleImage(decorated())!

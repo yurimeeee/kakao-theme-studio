@@ -142,7 +142,9 @@ export function ChatRoomScreen({ theme }: { theme: ResolvedTheme }) {
               <Bubble bubble={theme.bubbles.receive}>오늘 하루는 어땠어?</Bubble>
             </div>
             <div className="flex items-end gap-1">
-              <Bubble bubble={theme.bubbles.receive}>나는 새 테마를 만들고 있어</Bubble>
+              <Bubble bubble={theme.bubbles.receive} group>
+                나는 새 테마를 만들고 있어
+              </Bubble>
               {time('오후 2:10')}
             </div>
           </div>
@@ -154,7 +156,7 @@ export function ChatRoomScreen({ theme }: { theme: ResolvedTheme }) {
           </div>
           <div className="flex items-end gap-1">
             {time('오후 2:12')}
-            <Bubble bubble={theme.bubbles.send}>말풍선이 길어지면 이렇게 여러 줄로 보여요. 모서리와 여백을 함께 확인해 보세요.</Bubble>
+            <Bubble bubble={theme.bubbles.send} group>말풍선이 길어지면 이렇게 여러 줄로 보여요. 모서리와 여백을 함께 확인해 보세요.</Bubble>
           </div>
         </div>
         <div className="mt-1 flex gap-2">
