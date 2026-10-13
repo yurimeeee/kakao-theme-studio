@@ -9,7 +9,9 @@ rules_version = '2';
 //                             비공개 = no share document at all.
 // downloadMarks/{markId}      server only (download de-duplication)
 //
-// downloadCount is written only by Cloud Functions (Admin SDK bypasses these rules).
+// downloadCount and searchTokens are written only by Cloud Functions (Admin SDK bypasses
+// these rules). Every client-written document has a fixed field list (hasOnly) so nothing
+// unvalidated can be stored alongside the checked fields.
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() {
@@ -33,7 +35,9 @@ service cloud.firestore {
 
     match /themes/{themeId} {
       function validTheme(d) {
-        return d.ownerId == uid()
+        return d.keys().hasOnly(['ownerId', 'name', 'visibility', 'shareId', 'activeRevisionId', 'previousRevisionId',
+            'schemaVersion', 'config', 'assetManifest', 'exportThemeId', 'thumbnailPath', 'createdAt', 'updatedAt'])
+          && d.ownerId == uid()
           && validName(d.name)
           && d.visibility in ['private', 'public', 'unlisted']
           && (d.shareId == null || (d.shareId is string && d.shareId.size() <= 40))
@@ -58,6 +62,8 @@ service cloud.firestore {
         allow list: if signedIn() && resource.data.ownerId == uid();
         // getAfter: the first revision is written in the same transaction that creates the theme.
         allow create: if signedIn()
+          && request.resource.data.keys().hasOnly(['ownerId', 'name', 'schemaVersion', 'config', 'assetManifest',
+              'thumbnailPath', 'baseRevisionId', 'createdAt'])
           && request.resource.data.ownerId == uid()
           && getAfter(/databases/$(database)/documents/themes/$(themeId)).data.ownerId == uid();
         allow update: if false;
@@ -70,12 +76,14 @@ service cloud.firestore {
         return signedIn() && resource.data.ownerId == uid();
       }
       function validShare(d) {
-        return d.ownerId == uid()
+        return d.keys().hasOnly(['ownerId', 'themeId', 'visibility', 'name', 'ownerName', 'schemaVersion', 'exportThemeId',
+            'revisionId', 'status', 'config', 'assetManifest', 'thumbnailPath', 'downloadCount', 'publishedAt', 'updatedAt',
+            'searchTokens'])
+          && d.ownerId == uid()
           && d.visibility in ['public', 'unlisted']
           && d.status in ['preparing', 'ready']
           && validName(d.name)
           && d.ownerName is string && d.ownerName.size() <= 40
-          && d.searchTokens is list && d.searchTokens.size() <= 500
           && d.config is map
           && d.assetManifest is map
           && d.downloadCount is int;
@@ -87,11 +95,13 @@ service cloud.firestore {
       allow create: if signedIn()
         && validShare(request.resource.data)
         && request.resource.data.downloadCount == 0
+        && !('searchTokens' in request.resource.data)
         && get(/databases/$(database)/documents/themes/$(request.resource.data.themeId)).data.ownerId == uid();
       allow update: if isOwner()
         && validShare(request.resource.data)
         && request.resource.data.themeId == resource.data.themeId
         && request.resource.data.downloadCount == resource.data.downloadCount
+        && request.resource.data.get('searchTokens', null) == resource.data.get('searchTokens', null)
         && request.resource.data.publishedAt == resource.data.publishedAt;
       allow delete: if isOwner();
     }

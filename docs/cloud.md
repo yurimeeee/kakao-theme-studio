@@ -42,7 +42,7 @@ src/features/
   sharing/           공유 설정 다이얼로그, 테마 상세(#/t/{shareId})
   gallery/           둘러보기(#/gallery)
   projects/          내 작업 — 이 기기 / 클라우드 탭
-functions/src/       kakaoSignIn, recordDownload, onThemeDeleted, onShareDeleted
+functions/src/       kakaoSignIn, recordDownload, onThemeDeleted, onShareDeleted, onShareWritten
 firestore.rules · storage.rules · firestore.indexes.json · firebase.json
 ```
 
@@ -60,7 +60,7 @@ Firestore
   shares/{shareId}                         공개/링크 공개 사본 (비공개면 문서 없음)
     ownerId, themeId, status(preparing|ready), visibility(public|unlisted), name, ownerName,
     config(사용 중인 이미지만), assetManifest, exportThemeId, revisionId, thumbnailPath,
-    searchTokens[], downloadCount, publishedAt, updatedAt
+    searchTokens[](서버 전용), downloadCount(서버 전용), publishedAt, updatedAt
   downloadMarks/{markId}                   서버 전용 (다운로드 중복 방지, TTL expiresAt)
 
 Storage
@@ -109,7 +109,9 @@ Storage
 - 쿼리: `visibility == public` · `status == ready` · 정렬 · `limit(12+1)` · `startAfter(cursor)`. 규칙도 같은 조건을 요구하므로 클라이언트 필터에 의존하지 않습니다.
 - 정렬: **최신순** = `publishedAt desc`(처음 공개한 시각). **인기순** = `downloadCount desc, publishedAt desc`.
 - **인기 집계 기준**: 공유 테마별로 *같은 계정(비로그인은 솔트를 섞은 IP 해시) 기준 UTC 하루 1회*만 셉니다. 소유자 본인 다운로드는 세지 않습니다. 원본 IP는 저장하지 않습니다. 클라이언트는 `downloadCount`를 쓸 수 없고(규칙) `recordDownload` 함수만 증가시킵니다. 중복 표식은 `downloadMarks`에 2일 TTL로 남습니다.
-- **검색 전략**: Firestore에는 부분 문자열 검색이 없어, 공개 시 이름(NFC·소문자·공백 정리, 최대 30자)의 **모든 부분 문자열**을 `searchTokens`에 저장하고 정규화한 검색어 전체로 `array-contains` 한 번 조회합니다(최대 465개, 규칙 상한 500).
+- **검색 전략**: Firestore에는 부분 문자열 검색이 없어, 이름(NFC·소문자·공백 정리, 최대 30자)의 **모든 부분 문자열**을 `searchTokens`에 저장하고 정규화한 검색어 전체로 `array-contains` 한 번 조회합니다(최대 465개).
+  - `searchTokens`는 `onShareWritten` 함수가 share의 이름에서 만들어 씁니다. 클라이언트는 이 필드를 쓸 수 없어(규칙) 이름과 무관한 검색어로 노출시킬 수 없습니다. 그래서 공개 직후 검색에 잡히기까지 잠깐(보통 1초 이내) 걸립니다.
+  - 정규화는 `functions/src/search.ts`와 `src/cloud/model.ts`가 같아야 하며 단위 테스트가 확인합니다.
   - 장점: 한국어 부분 일치, 정렬·페이지네이션과 같은 쿼리라 결과가 일관됨.
   - 한계/비용: 이름만 검색(설명·제작자 제외), 오타·형태소·초성 검색 없음, 공개 문서당 색인 항목이 수백 개(쓰기·저장 비용 증가). 검색어 30자 초과는 결과 없음.
   - 확장 시: 공개 테마가 많아지면 Algolia/Typesense 같은 외부 검색 인덱스를 `shares` 트리거로 동기화하는 방식으로 교체합니다.
@@ -139,9 +141,9 @@ Storage
 | 대상 | 읽기 | 쓰기 |
 |---|---|---|
 | `users/{uid}` | 본인 | 본인, `displayName`·시각만 |
-| `themes/{id}` | 소유자 | 생성: `ownerId == 본인` / 수정·삭제: 소유자, `ownerId`·`createdAt` 불변 |
-| `themes/{id}/revisions` | 소유자 | 생성만(트랜잭션 `getAfter`로 부모 소유 확인), 수정 불가 |
-| `shares/{id}` | `ready`면 누구나 `get`, 목록은 `public`+`ready`만 | 생성: 자기 테마에만, `downloadCount == 0` / 수정: 소유자, `themeId`·`downloadCount`·`publishedAt` 불변 |
+| `themes/{id}` | 소유자 | 생성: `ownerId == 본인` / 수정·삭제: 소유자, `ownerId`·`createdAt` 불변. 정해진 필드만(`hasOnly`) |
+| `themes/{id}/revisions` | 소유자 | 생성만(트랜잭션 `getAfter`로 부모 소유 확인), 수정 불가. 정해진 필드만 |
+| `shares/{id}` | `ready`면 누구나 `get`, 목록은 `public`+`ready`만 | 생성: 자기 테마에만, `downloadCount == 0`, `searchTokens` 없음 / 수정: 소유자, `themeId`·`downloadCount`·`publishedAt`·`searchTokens` 불변. 정해진 필드만 |
 | `downloadMarks` | 불가 | 불가 (Admin만) |
 | Storage `users/{uid}/themes/**` | 본인 | 본인, PNG/JPEG/WebP ≤ 10MB |
 | Storage `shares/{id}/**` | share가 `ready`일 때 누구나, 목록은 소유자 | share 소유자, 이미지 ≤ 10MB |

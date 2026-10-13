@@ -1,5 +1,4 @@
 import type { SupportedImageMime } from '@/assets/types'
-import { THEME_NAME_MAX_LENGTH } from '@/domain/theme/defaults'
 import type { AssetId } from '@/domain/theme/types'
 
 /**
@@ -79,25 +78,9 @@ export const createRevisionId = () => `r${Date.now().toString(36)}${randomId(8)}
 export const isShareId = (id: string) => /^[A-Za-z0-9]{22}$/.test(id)
 
 /** Search normalization shared by indexing (publish) and querying (gallery). */
+/** Gallery query normalization; must match functions/src/search.ts, which builds the tokens. */
 export function normalizeSearchText(text: string): string {
   return text.normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim()
-}
-
-/**
- * Every substring of the normalized name. Firestore has no substring search, so the
- * gallery matches one `array-contains` token — the full normalized query. Names are at
- * most 30 characters, so this is at most 465 tokens per published theme.
- */
-export function searchTokens(name: string): string[] {
-  const n = normalizeSearchText(name).slice(0, THEME_NAME_MAX_LENGTH)
-  const out = new Set<string>()
-  for (let i = 0; i < n.length; i++) {
-    for (let j = i + 1; j <= n.length; j++) {
-      const t = n.slice(i, j)
-      if (t.trim()) out.add(t)
-    }
-  }
-  return [...out]
 }
 
 export const OWNER_NAME_MAX_LENGTH = 40

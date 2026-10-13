@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { completeKakaoLogin, KakaoLoginError } from './auth'
 import { readCloudConfig } from './config'
 import { CloudError, cloudErrorMessage, toCloudError } from './errors'
-import { createShareId, isShareId, normalizeSearchText, ownerDisplayName, searchTokens } from './model'
+import { THEME_NAME_MAX_LENGTH } from '@/domain/theme/defaults'
+import { normalizeSearchText as serverNormalize, SEARCH_NAME_MAX_LENGTH, searchTokens } from '../../functions/src/search'
+import { createShareId, isShareId, normalizeSearchText, ownerDisplayName } from './model'
 
 describe('readCloudConfig', () => {
   it('stays local-only without Firebase config', () => {
@@ -38,6 +40,11 @@ describe('search tokens', () => {
     const decomposed = '그레이'.normalize('NFD')
     expect(normalizeSearchText(`  SOFT   ${decomposed} `)).toBe('soft 그레이')
     expect(searchTokens(`SOFT ${decomposed}`)).toContain('soft 그레이')
+  })
+
+  it('the client query and the server tokens normalize identically', () => {
+    for (const text of ['  SOFT   그레이 ', '그레이'.normalize('NFD'), 'Ａ\tB\n c', '']) expect(normalizeSearchText(text)).toBe(serverNormalize(text))
+    expect(SEARCH_NAME_MAX_LENGTH).toBe(THEME_NAME_MAX_LENGTH)
   })
 
   it('stays within the Firestore rule limit for the longest name', () => {

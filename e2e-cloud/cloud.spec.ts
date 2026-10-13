@@ -119,9 +119,12 @@ test('공유: 링크 공개 → 비로그인 조회·다운로드, 공개 → �
   await dialog.getByRole('button', { name: '공개로 바꾸기' }).click()
   await expect(page.getByText('공개로 바꿨어요.', { exact: true })).toBeVisible()
   await expect(dialog.getByLabel('공유 링크')).toHaveValue(url)
-  await visitor.reload()
-  await visitor.getByRole('searchbox').fill(tag)
-  await expect(visitor.getByTestId('gallery-item').filter({ hasText: name })).toBeVisible()
+  // Search tokens are indexed by a function right after publishing: retry the search.
+  await expect(async () => {
+    await visitor.reload()
+    await visitor.getByRole('searchbox').fill(tag)
+    await expect(visitor.getByTestId('gallery-item').filter({ hasText: name })).toBeVisible({ timeout: 2_000 })
+  }).toPass({ timeout: 20_000 })
   await expect(visitor.getByTestId('gallery-item').filter({ hasText: name })).toContainText('다운로드 1회')
 
   // 비공개 → old link and gallery entry are gone.

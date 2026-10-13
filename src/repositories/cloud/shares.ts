@@ -23,7 +23,6 @@ import {
   createShareId,
   normalizeSearchText,
   ownerDisplayName,
-  searchTokens,
   shareAssetPath,
   shareThumbnailPath,
   type AssetManifest,
@@ -187,7 +186,6 @@ export class ShareRepository {
       schemaVersion: CURRENT_SCHEMA_VERSION,
       exportThemeId: theme.exportThemeId,
       revisionId: theme.activeRevisionId,
-      searchTokens: searchTokens(theme.name),
       updatedAt: serverTimestamp(),
     }
     if (!existing) {
@@ -273,7 +271,8 @@ export class ShareRepository {
   }
 
   /**
-   * 공개 themes only. Search matches a substring of the theme name (see searchTokens);
+   * 공개 themes only. Search matches a substring of the theme name (searchTokens, written by
+   * the onShareWritten function shortly after each publish);
    * the same filter applies to every page, so pagination stays consistent.
    */
   async gallery(options: { sort: GallerySort; search?: string; after?: DocumentSnapshot | null; pageSize?: number }): Promise<GalleryPage> {

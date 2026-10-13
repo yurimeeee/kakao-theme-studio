@@ -4,10 +4,11 @@ import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
 import { logger, setGlobalOptions } from 'firebase-functions'
 import { defineSecret, defineString } from 'firebase-functions/params'
-import { onDocumentDeleted } from 'firebase-functions/v2/firestore'
+import { onDocumentDeleted, onDocumentWritten } from 'firebase-functions/v2/firestore'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { clientIp, downloadActor, downloadMarkId, MARK_TTL_MS, SHARE_ID_PATTERN, utcDay } from './downloads.js'
 import { exchangeKakaoCode, isAllowedRedirect, KakaoAuthError, kakaoUid, type FetchLike } from './kakao.js'
+import { sameTokens, searchTokens } from './search.js'
 
 initializeApp()
 setGlobalOptions({ region: 'asia-northeast3', maxInstances: 10 })
@@ -108,4 +109,24 @@ export const onThemeDeleted = onDocumentDeleted({ document: 'themes/{themeId}', 
 /** A share document is gone (비공개 전환, 링크 변경, 삭제): remove its published copies. Retried on failure. */
 export const onShareDeleted = onDocumentDeleted({ document: 'shares/{shareId}', retry: true }, async (event) => {
   await getStorage().bucket().deleteFiles({ prefix: `shares/${event.params.shareId}/` })
+})
+
+/**
+ * Keeps a share's gallery search tokens derived from its name. Clients cannot write
+ * searchTokens (rules); this write re-triggers the function once and then stops because the
+ * tokens already match. An older event finishing last is corrected by the event its own write causes.
+ */
+export const onShareWritten = onDocumentWritten({ document: 'shares/{shareId}', retry: true }, async (event) => {
+  const after = event.data?.after
+  if (!after?.exists) return
+  const name = after.get('name')
+  const tokens = typeof name === 'string' ? searchTokens(name) : []
+  if (sameTokens(after.get('searchTokens'), tokens)) return
+  try {
+    await after.ref.update({ searchTokens: tokens })
+  } catch (error) {
+    // Deleted in the meantime (비공개 전환 등): nothing to index.
+    if ((error as { code?: number }).code === 5) return
+    throw error
+  }
 })

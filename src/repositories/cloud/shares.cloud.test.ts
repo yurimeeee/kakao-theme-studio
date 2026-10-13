@@ -157,6 +157,31 @@ describe('ShareRepository (emulator)', () => {
     await expect(setDoc(doc(other.db, 'shares', 'X'.repeat(22)), { ...data, ownerId: other.uid, downloadCount: 0 })).rejects.toEqual(denied)
   })
 
+  it('search tokens come only from the server and follow the name; unknown fields are rejected', async () => {
+    const tag = uniqueTag()
+    const { owner, themes, shares, project, assets, saved } = await ownerWithTheme(`가을 ${tag}`)
+    const { shareId } = await shares.setVisibility(saved.themeId, 'public')
+    const shareRef = doc(owner.db, 'shares', shareId!)
+    const anon = new ShareRepository(anonymousClient())
+    await eventually(async () => (await anon.gallery({ sort: 'latest', search: `가을 ${tag}` })).items.length === 1)
+
+    // The publisher cannot add search terms that are not in the name, or store extra fields.
+    await expect(updateDoc(shareRef, { searchTokens: ['인기', '추천'] })).rejects.toEqual(denied)
+    await expect(updateDoc(shareRef, { promoted: true })).rejects.toEqual(denied)
+    await expect(updateDoc(doc(owner.db, 'themes', saved.themeId), { promoted: true })).rejects.toEqual(denied)
+    const data = (await getDoc(shareRef)).data()!
+    const { searchTokens: _tokens, ...withoutTokens } = data
+    await expect(setDoc(doc(owner.db, 'shares', 'Y'.repeat(22)), { ...withoutTokens, downloadCount: 0, searchTokens: ['인기'] })).rejects.toEqual(denied)
+
+    // Renaming re-indexes: the new name matches, the old one no longer does.
+    const next = linked(project, saved)
+    next.name = `겨울 ${tag}`
+    await themes.save({ project: next, assets, thumbnail: null })
+    await shares.syncPublished(saved.themeId)
+    await eventually(async () => (await anon.gallery({ sort: 'latest', search: `겨울 ${tag}` })).items.length === 1)
+    expect((await anon.gallery({ sort: 'latest', search: `가을 ${tag}` })).items).toEqual([])
+  })
+
   it('gallery: public only, substring search, consistent pagination and sort orders', async () => {
     const tag = uniqueTag()
     const owner = await signedInClient('갤러리')
@@ -171,6 +196,8 @@ describe('ShareRepository (emulator)', () => {
     }
 
     const anon = new ShareRepository(anonymousClient())
+    // Search tokens are written by the onShareWritten function just after publishing.
+    await eventually(async () => (await anon.gallery({ sort: 'latest', search: tag })).items.length === 3)
     const page1 = await anon.gallery({ sort: 'latest', search: tag, pageSize: 2 })
     expect(page1.items.map((i) => i.name)).toEqual([names[2], names[1]])
     expect(page1.next).not.toBeNull()
