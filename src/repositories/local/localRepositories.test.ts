@@ -225,7 +225,7 @@ describe('cloud-linked local copies', () => {
     const theirs = { ...createNewProject(), cloudThemeId: 't2', cloudOwnerId: 'uid-b', cloudRevisionId: 'r1' }
     const local = createNewProject()
     for (const p of [mine, theirs, local]) {
-      const id = `ast_${p.id.slice(3, 12)}`
+      const id = `ast_${p.id.slice(3)}`
       await repos.assets.put(record(p.id, id, [3]))
       await save({ ...p, config: { ...p.config, profile: { mode: 'image', imageAssetId: id } } })
     }
