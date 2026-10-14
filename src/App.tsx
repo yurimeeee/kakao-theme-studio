@@ -1,6 +1,7 @@
 import { Layers, LogIn, UserRound } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { editorHref, galleryHref, navigate, projectsHref, useRoute } from '@/app/router'
+import { Button } from '@/components/ui/Button'
 import { cn } from '@/components/ui/cn'
 import { IconButton } from '@/components/ui/IconButton'
 import { toast } from '@/components/ui/toast'
@@ -23,7 +24,7 @@ function NavLink({ href, active, children }: { href: string; active: boolean; ch
       href={href}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'inline-flex min-h-11 items-center rounded-full px-3 text-[13px] font-semibold transition-colors sm:px-5 sm:text-[14px]',
+        'inline-flex min-h-11 items-center whitespace-nowrap rounded-full px-3 text-[13px] font-semibold transition-colors sm:px-5 sm:text-[14px]',
         active ? 'bg-ink text-white' : 'bg-canvas text-sub hover:text-ink',
       )}
     >
@@ -37,7 +38,17 @@ function AccountButton() {
   const [open, setOpen] = useState(false)
   if (status === 'unavailable') return null
   if (status !== 'signed-in') {
-    return <IconButton label="로그인" icon={<LogIn className="size-5" />} busy={status === 'loading'} onClick={() => openLogin()} />
+    return (
+      <Button
+        variant="soft"
+        className="gap-1.5 whitespace-nowrap px-3 text-[13px] text-ink sm:px-4 sm:text-[14px]"
+        busy={status === 'loading'}
+        onClick={() => openLogin()}
+      >
+        {status !== 'loading' && <LogIn className="hidden size-4 sm:block" aria-hidden />}
+        로그인
+      </Button>
+    )
   }
   return (
     <>
