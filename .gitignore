@@ -40,3 +40,4 @@ functions/.secret.local
 dist-emulator
 dist-local
 dist-smoke
+.vercel
