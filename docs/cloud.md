@@ -2,7 +2,7 @@
 
 작성일 2026-10-11. 요구사항 기준은 `kakao-theme-studio-development-kit/PROJECT_SPEC.md` §9·§11~13, 작업 계획은 `WORK_PLAN.md` §8~11.
 
-> 이 문서의 모든 동작은 **Firebase Emulator Suite(`demo-kakao-theme-studio`)** 에서 구현·검증했습니다. 실제 Firebase 프로젝트 생성·배포, 카카오 앱 등록, 요금제·예산 설정은 계정 작업이라 하지 않았습니다(§9 체크리스트).
+> 이 문서의 동작은 **Firebase Emulator Suite(`demo-kakao-theme-studio`)** 에서 구현·검증했고, 2026-10-12 실제 프로젝트 `kakao-theme-studio`에 배포했습니다(§9). 웹은 Vercel(https://kakao-theme-studio.vercel.app)에서 서비스합니다. 카카오 앱 등록과 예산·백업 설정은 아직입니다.
 
 ## 1. 저장 정책 → 구현 위치
 
@@ -186,7 +186,8 @@ pnpm e2e:cloud          # 실제 브라우저 E2E (빌드 → preview → Playwr
 7. 배포: `pnpm build && firebase deploy --project prod --only firestore:rules,firestore:indexes,storage,functions,hosting` (재시도 정책이 있는 함수는 비대화형에서 `--force` 필요)
 8. Storage CORS(브라우저 `getBytes`에 필요): `storage-cors.json`의 origin을 바꾼 뒤 `gcloud storage buckets update gs://<bucket> --cors-file=storage-cors.json`
 9. Firestore TTL: `downloadMarks.expiresAt` (indexes 파일의 fieldOverrides로 배포됨, 콘솔에서 활성 확인).
-10. 권장: App Check(reCAPTCHA Enterprise)로 함수·Storage 남용 완화, 업로드 한도(파일 10MB)·Storage 사용량 모니터링, Firestore 백업(PITR 또는 예약 내보내기).
+10. 웹(Vercel): GitHub 연결로 `main` 푸시마다 프로덕션 배포. 프로젝트 환경 변수에 `VITE_FIREBASE_*`(Production·Preview), `vercel.json`의 SPA rewrite로 `/auth/kakao/callback`을 앱으로 보냄. 카카오 Redirect URI와 `KAKAO_REDIRECT_URIS`는 `https://kakao-theme-studio.vercel.app/auth/kakao/callback`. Storage 읽기는 `firebasestorage.googleapis.com`을 거치므로 Vercel 출처에서도 CORS가 통과합니다(2026-10-14 사전 요청으로 확인).
+11. 권장: App Check(reCAPTCHA Enterprise)로 함수·Storage 남용 완화, 업로드 한도(파일 10MB)·Storage 사용량 모니터링, Firestore 백업(PITR 또는 예약 내보내기).
 
 ## 10. 제한과 후속
 

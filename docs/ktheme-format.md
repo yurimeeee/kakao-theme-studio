@@ -78,7 +78,7 @@ ManifestStyle {
 | 암호 표시 4개 ×(전/후) | `PasscodeStyle -ios-bullet-{first..fourth}-image`, `-ios-bullet-selected-…` | `passcodeImgCode0N[Selected]` | **48×48 (16pt 원)** | 200×200 @3x 캐릭터 그림 | 속성은 참고 파일, **생성 크기는 추정** |
 | 키패드 | `-ios-keypad-background-color`, `-ios-keypad-text-normal-color`, `-ios-keypad-number-highlighted-image` | `passcodeKeypadPressed` | 60×60 | @3x 180×180 | 참고 파일 |
 | 알림 바 | `BackgroundStyle-MessageNotificationBar`, `LabelStyle-…Name/Message` | — | — | 있음 | 참고 파일 (전체 색상에서 파생) |
-| 테마 아이콘 | (CSS 참조 없음) | `Images/commonIcoTheme.png` | 200×200px | 있음 | 참고 파일 |
+| 테마 아이콘 | (CSS 참조 없음) | `Images/commonIcoTheme.png` | 200×200px (올린 이미지는 가운데 정사각형으로 자름, 없으면 대화방 배경+말풍선 색으로 생성) | 있음 | 참고 파일 |
 
 전체 색상(주요 배경·주요 글자·보조 글자·강조색)은 별도 리소스가 아니라 `src/domain/theme/resolve.ts`의 상속 규칙으로 각 속성 값이 됩니다. 미리보기와 생성 엔진이 같은 `resolveTheme()` 결과를 사용합니다.
 
