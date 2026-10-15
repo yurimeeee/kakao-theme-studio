@@ -33,6 +33,9 @@ pnpm dev          # http://localhost:5173
 | `pnpm test:cloud` | 에뮬레이터 통합 테스트: 보안 규칙·클라우드 저장·공유·갤러리·함수 |
 | `pnpm e2e:cloud` | 에뮬레이터 + 브라우저 E2E: 로그인·저장·공유·계정 전환·충돌 |
 | `pnpm --dir functions test` | Cloud Functions 단위 테스트 (카카오 교환·다운로드 중복 키) |
+| `pnpm exec playwright test -c e2e-smoke/playwright.config.ts` | **실제 Firebase 프로젝트** 스모크: 가입·저장·공개 공유·비로그인 다운로드·갤러리·다른 기기·삭제. 기본은 `.env.production.local`로 로컬 빌드(:4173), `SMOKE_BASE_URL=https://kakao-theme-studio.vercel.app`이면 배포 사이트 대상 |
+
+> 스모크 테스트는 실제 프로젝트에 테스트 계정(`smoke-…@example.com`)을 만들고 지우지 않습니다. 테마는 마지막에 삭제하며, 계정 정보는 실행 끝에 `SMOKE_ACCOUNT`로 출력됩니다.
 
 로컬 전용으로 쓸 때는 환경 변수가 필요 없습니다. 클라우드 설정은 `.env.example`과 [`docs/cloud.md` §9](docs/cloud.md)를 참고하세요. 클라우드 명령은 최초 1회 `pnpm --dir functions install`이 필요합니다.
 
@@ -67,6 +70,7 @@ pnpm dev          # http://localhost:5173
 ```text
 src/
   app/                 라우팅(hash)·서비스 조립·에러 경계
+  lib/                 범용 유틸 (클립보드, 동시성 제한, 포맷, useMediaQuery)
   components/ui/       공통 접근성 컴포넌트 (IconButton, Segmented, Sheet, Dialog, ColorField …)
   domain/theme/        ThemeConfig 타입·기본값·정규화/마이그레이션·resolveTheme
   assets/              이미지 검증·해시·가져오기·object URL 수명 관리
@@ -83,6 +87,7 @@ functions/             (2차) Cloud Functions: kakaoSignIn, recordDownload, 삭�
 firestore.rules · storage.rules · firestore.indexes.json · firebase.json
 e2e/                   Playwright 시나리오 (로컬 전용 빌드)
 e2e-cloud/             Playwright 시나리오 (에뮬레이터)
+e2e-smoke/             Playwright 스모크 (실제 Firebase 프로젝트·배포 사이트)
 docs/                  형식 조사·진행 체크리스트·검증 결과
 ```
 
