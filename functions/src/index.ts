@@ -41,6 +41,11 @@ const DOWNLOAD_SALT = defineSecret('DOWNLOAD_SALT')
  * App Check (reCAPTCHA Enterprise) is registered and VITE_FIREBASE_APPCHECK_SITE_KEY is deployed.
  */
 const REQUIRE_APP_CHECK = defineBoolean('REQUIRE_APP_CHECK', { default: false })
+/**
+ * Runtime account of the 1st Gen Auth trigger. 1st Gen defaults to `<project>@appspot.gserviceaccount.com`,
+ * which newer projects do not have; set the compute default account (`<number>-compute@developer…`) there.
+ */
+const AUTH_TRIGGER_SERVICE_ACCOUNT = defineString('AUTH_TRIGGER_SERVICE_ACCOUNT', { default: 'default' })
 
 /**
  * 카카오 로그인: authorization code → Kakao token (server) → Kakao user id →
@@ -203,7 +208,7 @@ export const deleteAccount = onCall({ invoker: 'public' }, async (request) => {
 
 /** An account removed elsewhere (Firebase console, Admin SDK): clean up its data too. */
 export const onUserDeleted = regionV1('asia-northeast3')
-  .runWith({ failurePolicy: true })
+  .runWith({ failurePolicy: true, serviceAccount: AUTH_TRIGGER_SERVICE_ACCOUNT })
   .auth.user()
   .onDelete(async (user) => {
     await purgeUserData(user.uid)
