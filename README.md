@@ -31,7 +31,7 @@ pnpm dev          # http://localhost:5173
 | `pnpm emulators` | Firebase 에뮬레이터 (Auth·Firestore·Storage·Functions). Java 21+ 필요 |
 | `pnpm dev:cloud` | 에뮬레이터에 연결된 개발 서버 (`.env.emulator`) |
 | `pnpm test:cloud` | 에뮬레이터 통합 테스트: 보안 규칙·클라우드 저장·공유·갤러리·함수 |
-| `pnpm e2e:cloud` | 에뮬레이터 + 브라우저 E2E: 로그인·저장·공유·계정 전환·충돌 |
+| `pnpm e2e:cloud` | 에뮬레이터 + 브라우저 E2E: 로그인·저장·공유·계정 전환·충돌·복제·회원 탈퇴 |
 | `pnpm --dir functions test` | Cloud Functions 단위 테스트 (카카오 교환·다운로드 중복 키) |
 | `pnpm exec playwright test -c e2e-smoke/playwright.config.ts` | **실제 Firebase 프로젝트** 스모크: 가입·저장·공개 공유·비로그인 다운로드·갤러리·다른 기기·삭제. 기본은 `.env.production.local`로 로컬 빌드(:4173), `SMOKE_BASE_URL=https://kakao-theme-studio.vercel.app`이면 배포 사이트 대상 |
 
@@ -56,8 +56,10 @@ pnpm dev          # http://localhost:5173
 - 로그인·편집만으로는 아무것도 올리지 않음. **저장/내보내기 확정 때만** 원본 이미지(Storage)·설정(Firestore) 저장, 리비전 승격·충돌 감지(덮어쓰지 않음)
 - 내 작업 → 클라우드 탭: 다른 기기에서 이어서 편집, 내보내기, 공유, 삭제
 - 공개 범위 비공개 / 링크 공개 / 공개, 링크 복사·변경. 공개·링크 공개 테마는 비로그인으로 보고 `.ktheme` 다운로드(다운로드해도 내 프로젝트를 만들지 않음)
-- 둘러보기: 공개 테마만, 이름 부분 검색, 최신순·인기순(하루 1회 중복 제외 다운로드 수), 더 보기
+- 복제 허용(제작자가 켤 때만): 보는 사람이 "내 작업으로 복제" → 새 로컬 프로젝트, 원본 이름·제작자 표시 유지
+- 둘러보기: 공개 테마만, 이름 부분 검색, 최신순·인기순(하루 1회 중복 제외 다운로드 수, IP별 호출·집계 상한), 더 보기
 - 로그아웃·계정 변경 시 다른 계정의 로컬 사본 숨김(선택 시 삭제)
+- 회원 탈퇴: 클라우드 테마·이미지·공유 링크·프로필 삭제, 이 기기 사본은 로그인 없는 작업으로 남김(선택 시 삭제)
 
 ## 배포
 

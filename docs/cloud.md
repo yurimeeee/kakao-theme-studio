@@ -42,7 +42,7 @@ src/features/
   sharing/           공유 설정 다이얼로그, 테마 상세(#/t/{shareId})
   gallery/           둘러보기(#/gallery)
   projects/          내 작업 — 이 기기 / 클라우드 탭
-functions/src/       kakaoSignIn, recordDownload, onThemeDeleted, onShareDeleted, onShareWritten
+functions/src/       kakaoSignIn, recordDownload, deleteAccount, onUserDeleted, onThemeDeleted, onShareDeleted, onShareWritten
 firestore.rules · storage.rules · firestore.indexes.json · firebase.json
 ```
 
@@ -55,13 +55,15 @@ Firestore
   users/{uid}                              displayName, updatedAt (명시적 저장 때만 기록)
   themes/{themeId}                         소유자 전용 작업본
     ownerId, name, visibility, shareId, activeRevisionId, previousRevisionId,
-    schemaVersion, config, assetManifest, exportThemeId, thumbnailPath, createdAt, updatedAt
+    schemaVersion, config, assetManifest, exportThemeId, thumbnailPath, createdAt, updatedAt,
+    allowRemix(복제 허용), origin(복제 원본 {shareId, name, ownerName} 또는 null)
   themes/{themeId}/revisions/{revisionId}  ownerId, name, config, assetManifest, thumbnailPath, baseRevisionId, createdAt
   shares/{shareId}                         공개/링크 공개 사본 (비공개면 문서 없음)
     ownerId, themeId, status(preparing|ready), visibility(public|unlisted), name, ownerName,
     config(사용 중인 이미지만), assetManifest, exportThemeId, revisionId, thumbnailPath,
-    searchTokens[](서버 전용), downloadCount(서버 전용), publishedAt, updatedAt
-  downloadMarks/{markId}                   서버 전용 (다운로드 중복 방지, TTL expiresAt)
+    searchTokens[](서버 전용), downloadCount(서버 전용), allowRemix, origin, publishedAt, updatedAt
+  downloadMarks/{markId}                   서버 전용 (다운로드 중복 방지·IP별 집계 수, TTL expiresAt)
+  downloadRates/{rateId}                   서버 전용 (IP별 시간당 호출 수, TTL expiresAt)
 
 Storage
   users/{uid}/themes/{themeId}/assets/{sha256}.{png|jpg|webp}
@@ -102,7 +104,11 @@ Storage
 - 비공개 전환·링크 변경·삭제는 **share 문서를 먼저 지워** 즉시 차단합니다. Storage 규칙이 `firestore.get(shares/{id}).status == 'ready'`를 확인하므로 파일 URL을 알아도 읽을 수 없습니다. 사본 파일은 `onShareDeleted` 함수가 재시도하며 지웁니다.
 - 앱은 `getDownloadURL`(영구 토큰 URL)을 쓰지 않고 규칙을 거치는 `getBytes`로만 읽습니다.
 - 이미 내려받은 파일은 회수할 수 없다고 공유 다이얼로그에 표시합니다.
-- 복제 허용(선택 기능)은 구현하지 않았습니다. 디자인 시안의 "내 작업으로 복제" 버튼은 넣지 않았습니다.
+- **복제 허용**(2026-10-16): 공유 설정의 "내 작업으로 복제 허용"(기본 꺼짐). 값은 테마 문서(`allowRemix`)에 두어 저장·재공개에도 유지되고, 현재 share 문서에도 바로 반영합니다.
+  - 허용된 테마만 상세 페이지에 "내 작업으로 복제"가 보입니다. 다운로드는 허용 여부와 관계없이 됩니다(별개 권한).
+  - 복제는 로그인 없이 됩니다. 새 로컬 ID·새 `.ktheme` ID로 이 기기에 보관하고, 클라우드 쓰기와 다운로드 집계는 하지 않습니다.
+  - `origin`에 원본 링크·이름·제작자를 남깁니다. 복제본을 다시 공개하면 상세에 "원본 … · by …"(원본 링크)가 보입니다. 복제의 복제는 처음 만든 사람을 유지합니다.
+  - **한계**: 공개 사본의 설정·이미지는 원래 누구나 읽을 수 있으므로, 복제 허용은 제작자의 의사 표시이자 UI 제공 여부입니다. 기술적으로 막는 장치는 아닙니다.
 
 ## 6. 갤러리 (Phase 6)
 
@@ -116,6 +122,11 @@ Storage
   - 한계/비용: 이름만 검색(설명·제작자 제외), 오타·형태소·초성 검색 없음, 공개 문서당 색인 항목이 수백 개(쓰기·저장 비용 증가). 검색어 30자 초과는 결과 없음.
   - 확장 시: 공개 테마가 많아지면 Algolia/Typesense 같은 외부 검색 인덱스를 `shares` 트리거로 동기화하는 방식으로 교체합니다.
 - 공개 범위 변경은 share 문서 변경/삭제라 다음 조회부터 반영됩니다.
+- **남용 방지**(2026-10-16, `recordDownload`). IP는 솔트를 섞은 해시로만 다룹니다.
+  - 같은 IP의 호출은 **시간당 60회**까지 처리합니다. 넘으면 문서 1개만 읽고 아무것도 쓰지 않습니다(`downloadRates`).
+  - 같은 IP에서 한 테마의 집계는 **하루 3회**까지입니다. 계정을 여러 개 만들어 인기순을 올리는 것을 막고, 가정·사무실 몇 명은 셉니다.
+  - App Check(선택): `VITE_FIREBASE_APPCHECK_SITE_KEY`가 있으면 브라우저가 reCAPTCHA Enterprise로 토큰을 붙입니다. 함수 파라미터 `REQUIRE_APP_CHECK=true`이면 토큰 없는 호출은 세지 않습니다. 둘 다 기본 꺼짐입니다.
+  - IP를 대량으로 바꾸는 공격은 App Check 없이 막을 수 없습니다.
 
 ## 7. 인증
 
@@ -135,16 +146,21 @@ Storage
   - 로그아웃 시 "이 기기에 남은 사본 N개도 지우기"를 고를 수 있습니다(공용 기기용).
   - 다른 탭에서 계정이 바뀌어도(`onAuthStateChanged`) 열린 사본을 닫습니다.
   - 내 테마 목록은 uid가 바뀌면 새로 그립니다.
+- **회원 탈퇴**(2026-10-16): 내 계정 → 회원 탈퇴 → 안내 확인 체크 → `deleteAccount` 함수.
+  - 지우는 순서: share(공개 즉시 종료) → 테마·리비전 → Storage `users/{uid}/` → `users/{uid}` 문서 → Auth 계정. 공개 사본 파일은 `onShareDeleted`가 지웁니다.
+  - 마지막 로그인이 10분 넘게 지났으면 거절합니다("다시 로그인하고 탈퇴해 주세요").
+  - 콘솔 등 다른 경로로 Auth 계정을 지워도 `onUserDeleted`(v1 Auth 트리거, 재시도)가 같은 정리를 합니다. 정리는 여러 번 실행해도 결과가 같습니다.
+  - 이 기기의 연결 사본은 기본으로 로그인 없는 작업으로 남깁니다(클라우드 연결만 해제). "이 기기 사본도 지우기"를 고르면 함께 지웁니다.
 
 ## 8. 보안 규칙 요약
 
 | 대상 | 읽기 | 쓰기 |
 |---|---|---|
 | `users/{uid}` | 본인 | 본인, `displayName`·시각만 |
-| `themes/{id}` | 소유자 | 생성: `ownerId == 본인` / 수정·삭제: 소유자, `ownerId`·`createdAt` 불변. 정해진 필드만(`hasOnly`) |
+| `themes/{id}` | 소유자 | 생성: `ownerId == 본인` / 수정·삭제: 소유자, `ownerId`·`createdAt` 불변. 정해진 필드만(`hasOnly`), `allowRemix`는 bool, `origin`은 정해진 3필드·길이 제한 |
 | `themes/{id}/revisions` | 소유자 | 생성만(트랜잭션 `getAfter`로 부모 소유 확인), 수정 불가. 정해진 필드만 |
 | `shares/{id}` | `ready`면 누구나 `get`, 목록은 `public`+`ready`만 | 생성: 자기 테마에만, `downloadCount == 0`, `searchTokens` 없음 / 수정: 소유자, `themeId`·`downloadCount`·`publishedAt`·`searchTokens` 불변. 정해진 필드만 |
-| `downloadMarks` | 불가 | 불가 (Admin만) |
+| `downloadMarks`, `downloadRates` | 불가 | 불가 (Admin만) |
 | Storage `users/{uid}/themes/**` | 본인 | 본인, PNG/JPEG/WebP ≤ 10MB |
 | Storage `shares/{id}/**` | share가 `ready`일 때 누구나, 목록은 소유자 | share 소유자, 이미지 ≤ 10MB |
 
@@ -176,6 +192,8 @@ pnpm e2e:cloud          # 실제 브라우저 E2E (빌드 → preview → Playwr
    ```bash
    firebase functions:secrets:set KAKAO_CLIENT_SECRET
    firebase functions:secrets:set DOWNLOAD_SALT        # 임의의 긴 문자열
+   # 선택: App Check를 등록하고 웹에 VITE_FIREBASE_APPCHECK_SITE_KEY를 배포한 뒤에만
+   # REQUIRE_APP_CHECK=true   (functions/.env.<projectId>)
    # functions/.env.<projectId>
    KAKAO_REST_API_KEY=...
    KAKAO_REDIRECT_URIS=https://<도메인>/auth/kakao/callback
@@ -185,16 +203,16 @@ pnpm e2e:cloud          # 실제 브라우저 E2E (빌드 → preview → Playwr
    커스텀 토큰 발급을 위해 함수 실행 서비스 계정에 **Service Account Token Creator** 역할이 필요할 수 있습니다.
 7. 배포: `pnpm build && firebase deploy --project prod --only firestore:rules,firestore:indexes,storage,functions,hosting` (재시도 정책이 있는 함수는 비대화형에서 `--force` 필요)
 8. Storage CORS(브라우저 `getBytes`에 필요): `storage-cors.json`의 origin을 바꾼 뒤 `gcloud storage buckets update gs://<bucket> --cors-file=storage-cors.json`
-9. Firestore TTL: `downloadMarks.expiresAt` (indexes 파일의 fieldOverrides로 배포됨, 콘솔에서 활성 확인).
+9. Firestore TTL: `downloadMarks.expiresAt`, `downloadRates.expiresAt` (indexes 파일의 fieldOverrides로 배포됨, 콘솔에서 활성 확인).
 10. 웹(Vercel): GitHub 연결로 `main` 푸시마다 프로덕션 배포. 프로젝트 환경 변수에 `VITE_FIREBASE_*`(Production·Preview), `vercel.json`의 SPA rewrite로 `/auth/kakao/callback`을 앱으로 보냄. 카카오 Redirect URI와 `KAKAO_REDIRECT_URIS`는 `https://kakao-theme-studio.vercel.app/auth/kakao/callback`. Storage 읽기는 `firebasestorage.googleapis.com`을 거치므로 Vercel 출처에서도 CORS가 통과합니다(2026-10-14 사전 요청으로 확인).
-11. 권장: App Check(reCAPTCHA Enterprise)로 함수·Storage 남용 완화, 업로드 한도(파일 10MB)·Storage 사용량 모니터링, Firestore 백업(PITR 또는 예약 내보내기).
+11. 권장: App Check(reCAPTCHA Enterprise) 등록 후 `VITE_FIREBASE_APPCHECK_SITE_KEY`·`REQUIRE_APP_CHECK=true`로 다운로드 집계 보호(§6), Storage에도 적용 검토, 업로드 한도(파일 10MB)·Storage 사용량 모니터링, Firestore 백업(PITR 또는 예약 내보내기).
 
 ## 10. 제한과 후속
 
 - 실제 카카오 환경에서는 실행하지 않았습니다. 커스텀 토큰 서명 권한은 카카오 설정 후 확인해야 합니다.
 - `kakao-theme-studio` Storage 버킷 위치는 `US-EAST1`입니다(생성 후 변경 불가). 한국 사용자에게는 이미지 왕복 지연이 조금 있습니다.
-- 계정 삭제(회원 탈퇴)와 그 데이터 정리는 구현하지 않았습니다. Auth 계정만 지우면 `users/{uid}` 문서가 남습니다(규칙상 사용자 삭제 불가).
-- 다운로드 집계의 IP 기준 중복 방지는 같은 네트워크 사용자를 한 명으로 셉니다. 대규모 남용 방지는 App Check·레이트 리밋 추가가 필요합니다.
+- 회원 탈퇴(§7)는 에뮬레이터에서만 확인했습니다. 운영에서는 함수 배포 후 확인이 필요합니다. 이미 다른 사람이 내려받거나 복제한 테마는 회수되지 않습니다.
+- 다운로드 집계의 IP 기준 중복 방지는 같은 네트워크의 비로그인 사용자를 한 명으로, 로그인 사용자는 테마별 하루 3명까지로 셉니다. IP를 대량으로 바꾸는 남용은 App Check를 켜야 줄일 수 있습니다(§6).
 - 갤러리 썸네일은 저장 시 만든 128px 아이콘(대화방 배경 + 말풍선)입니다.
 - 공개 사본은 원본과 별도로 Storage 용량을 씁니다(공개 테마만).
 - Firebase가 설정되지 않은 빌드에서는 계정에 연결된 로컬 사본이 계속 숨겨집니다(로그인할 방법이 없음).
