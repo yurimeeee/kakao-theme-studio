@@ -29,14 +29,15 @@ export function ShareDialog({ themeId, themeName, onOpenChange, onChanged }: Sha
 }
 
 function ShareForm({ themeId, onChanged }: { themeId: string; onChanged?: ShareDialogProps['onChanged'] }) {
-  const [current, setCurrent] = useState<{ visibility: Visibility; shareId: string | null } | null>(null)
+  const [current, setCurrent] = useState<{ visibility: Visibility; shareId: string | null; allowRemix: boolean } | null>(null)
   const [draft, setDraft] = useState<Visibility>('private')
-  const [busy, setBusy] = useState<null | 'apply' | 'rotate'>(null)
+  const [busy, setBusy] = useState<null | 'apply' | 'rotate' | 'remix'>(null)
   const [error, setError] = useState<string | null>(null)
   const [confirmRotate, setConfirmRotate] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
   const linkRef = useRef<HTMLInputElement>(null)
   const linkId = useId()
+  const remixId = useId()
 
   const load = async () => {
     setLoadFailed(false)
@@ -44,7 +45,7 @@ function ShareForm({ themeId, onChanged }: { themeId: string; onChanged?: ShareD
       const rt = await loadCloud()
       const theme = await rt.themes.get(themeId)
       if (!theme) throw new Error('missing')
-      setCurrent({ visibility: theme.visibility, shareId: theme.shareId })
+      setCurrent({ visibility: theme.visibility, shareId: theme.shareId, allowRemix: theme.allowRemix })
       setDraft(theme.visibility)
     } catch {
       setLoadFailed(true)
@@ -64,11 +65,29 @@ function ShareForm({ themeId, onChanged }: { themeId: string; onChanged?: ShareD
     try {
       const rt = await loadCloud()
       const { shareId } = await rt.shares.setVisibility(themeId, visibility, { rotateLink })
-      setCurrent({ visibility, shareId })
+      setCurrent((c) => ({ visibility, shareId, allowRemix: c?.allowRemix ?? false }))
       setConfirmRotate(false)
       onChanged?.(visibility, shareId)
       toast(rotateLink ? '새 링크를 만들었어요. 이전 링크는 더 이상 열리지 않아요.' : `${VISIBILITY_LABELS[visibility]}로 바꿨어요.`)
     } catch (e) {
+      setError(cloudErrorMessage(e))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const toggleRemix = async (allowRemix: boolean) => {
+    if (busy) return
+    setBusy('remix')
+    setError(null)
+    // Show the choice at once; roll back if it could not be stored.
+    setCurrent((c) => (c ? { ...c, allowRemix } : c))
+    try {
+      const rt = await loadCloud()
+      await rt.shares.setAllowRemix(themeId, allowRemix)
+      toast(allowRemix ? '복제를 허용했어요.' : '복제를 허용하지 않아요.')
+    } catch (e) {
+      setCurrent((c) => (c ? { ...c, allowRemix: !allowRemix } : c))
       setError(cloudErrorMessage(e))
     } finally {
       setBusy(null)
@@ -166,6 +185,26 @@ function ShareForm({ themeId, onChanged }: { themeId: string; onChanged?: ShareD
           )}
         </div>
       )}
+
+      <label htmlFor={remixId} className="flex min-h-11 cursor-pointer items-start gap-3 text-[14px]">
+        <input
+          id={remixId}
+          type="checkbox"
+          checked={current.allowRemix}
+          onChange={(e) => void toggleRemix(e.target.checked)}
+          disabled={busy !== null}
+          className="mt-1 size-4 accent-[var(--color-ink)]"
+        />
+        <span>
+          내 작업으로 복제 허용
+          <span className="block text-[12px] leading-relaxed text-sub">
+            {current.visibility === 'private'
+              ? '공개하거나 링크 공개하면 적용돼요. '
+              : ''}
+            허용하면 보는 사람이 이 테마를 자기 작업으로 가져와 고칠 수 있어요. 원본 이름과 제작자는 복제본에 함께 남아요.
+          </span>
+        </span>
+      </label>
 
       {error && (
         <p role="alert" className="text-[13px] text-danger">

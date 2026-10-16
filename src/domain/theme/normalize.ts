@@ -1,5 +1,5 @@
 import { isHexColor, normalizeHex } from './color'
-import { BUBBLE_IMAGE_SIZE_MAX, BUBBLE_IMAGE_SIZE_MIN, BUBBLE_RADIUS_MAX, BUBBLE_RADIUS_MIN, createDefaultConfig } from './defaults'
+import { BUBBLE_IMAGE_SIZE_MAX, BUBBLE_IMAGE_SIZE_MIN, BUBBLE_RADIUS_MAX, BUBBLE_RADIUS_MIN, createDefaultConfig, THEME_NAME_MAX_LENGTH } from './defaults'
 import { isAssetId } from './ids'
 import {
   CURRENT_SCHEMA_VERSION,
@@ -11,6 +11,7 @@ import {
   type FillSetting,
   type HexColor,
   type ThemeConfig,
+  type ThemeOrigin,
 } from './types'
 
 export class UnsupportedSchemaError extends Error {
@@ -252,4 +253,13 @@ export function mapAssetRefs(config: ThemeConfig, map: (id: AssetId) => AssetId 
 /** Returns a copy of `config` with every reference to `ids` cleared (used when stored images are missing). */
 export function removeAssetRefs(config: ThemeConfig, ids: ReadonlySet<AssetId>): ThemeConfig {
   return mapAssetRefs(config, (id) => (ids.has(id) ? null : id))
+}
+
+/** Validates stored origin data (local rows, cloud documents); anything malformed reads as null. */
+export function normalizeOrigin(value: unknown): ThemeOrigin | null {
+  if (!value || typeof value !== 'object') return null
+  const { shareId, name, ownerName } = value as Record<string, unknown>
+  if (typeof shareId !== 'string' || !/^[A-Za-z0-9]{22}$/.test(shareId)) return null
+  if (typeof name !== 'string' || typeof ownerName !== 'string') return null
+  return { shareId, name: name.slice(0, THEME_NAME_MAX_LENGTH), ownerName: ownerName.slice(0, 40) }
 }

@@ -1,5 +1,5 @@
 import type { AssetMeta, AssetRecord } from '@/assets/types'
-import { collectAssetIds, migrateConfig } from '@/domain/theme/normalize'
+import { collectAssetIds, migrateConfig, normalizeOrigin } from '@/domain/theme/normalize'
 import type { AssetId, LocalProjectId, ThemeProject } from '@/domain/theme/types'
 import {
   StorageError,
@@ -36,6 +36,7 @@ function rowToProject(row: ProjectRow): ThemeProject {
       cloudThemeId: row.cloudThemeId ?? null,
       cloudOwnerId: row.cloudOwnerId ?? null,
       cloudRevisionId: row.cloudRevisionId ?? null,
+      origin: normalizeOrigin(row.origin),
       config: migrateConfig(row.config),
     }
   } catch (error) {

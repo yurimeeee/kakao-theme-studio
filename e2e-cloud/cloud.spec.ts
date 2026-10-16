@@ -195,6 +195,49 @@ test('두 기기에서 같은 테마를 저장하면 덮어쓰지 않고 충돌�
   await other.context().close()
 })
 
+test('복제: 제작자가 허용한 테마만 비로그인 방문자가 내 작업으로 복제하고, 원본 정보가 남는다', async ({ page, browser }) => {
+  await freshApp(page)
+  await signUp(page, newAccount('원작자'))
+  const name = `원본 ${uniqueTag()}`
+  await saveTheme(page, name, '링크 공개')
+  await page.getByRole('button', { name: '공유', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '테마 공유' })
+  const url = await dialog.getByLabel('공유 링크').inputValue()
+
+  const visitor = await newDevice(browser)
+  await visitor.goto(url)
+  await expect(visitor.getByTestId('share-name')).toHaveText(name)
+  // Download is allowed; 복제 is a separate permission that is off by default.
+  await expect(visitor.getByRole('button', { name: '.ktheme 다운로드' })).toBeVisible()
+  await expect(visitor.getByRole('button', { name: '내 작업으로 복제' })).toHaveCount(0)
+
+  await dialog.getByRole('checkbox', { name: /내 작업으로 복제 허용/ }).check()
+  await expect(page.getByText('복제를 허용했어요.')).toBeVisible()
+
+  await visitor.reload()
+  await visitor.getByRole('button', { name: '내 작업으로 복제' }).click()
+  await expect(visitor.getByText('내 작업에 복제했어요. 이 기기에 보관돼요.')).toBeVisible()
+  await expect(visitor).toHaveURL(/#\/editor\/lp_/)
+  await expect(visitor.getByTestId('theme-name')).toHaveText(name)
+  await visitor.goto('/#/projects')
+  await expect(visitor.getByTestId('project-item').filter({ hasText: name })).toHaveCount(1)
+
+  // The visitor signs up and publishes the copy: the original creator is credited.
+  await signUp(visitor, newAccount('가져간 사람'))
+  await visitor.getByRole('button', { name: `${name} 편집` }).click()
+  await saveTheme(visitor, `${name} 변형`, '링크 공개')
+  await visitor.getByRole('button', { name: '공유', exact: true }).click()
+  const copyUrl = await visitor.getByRole('dialog', { name: '테마 공유' }).getByLabel('공유 링크').inputValue()
+  const third = await newDevice(browser)
+  await third.goto(copyUrl)
+  await expect(third.getByTestId('share-origin')).toContainText(name)
+  await expect(third.getByTestId('share-origin')).toContainText('by 원작자')
+  await third.getByTestId('share-origin').getByRole('link').click()
+  await expect(third.getByTestId('share-name')).toHaveText(name)
+  await third.context().close()
+  await visitor.context().close()
+})
+
 test('회원 탈퇴: 클라우드 테마와 공유 링크가 사라지고 이 기기 사본은 로그인 없는 작업으로 남는다', async ({ page, browser }) => {
   await freshApp(page)
   await signUp(page, newAccount('떠나는 사람'))

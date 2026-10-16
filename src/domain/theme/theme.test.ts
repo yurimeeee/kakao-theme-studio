@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createDefaultConfig, createNewProject } from './defaults'
-import { collectAssetIds, mapAssetRefs, migrateConfig, normalizeConfig, UnsupportedSchemaError } from './normalize'
+import { collectAssetIds, mapAssetRefs, migrateConfig, normalizeConfig, normalizeOrigin, UnsupportedSchemaError } from './normalize'
 import { activeAssetIds, resolveTheme } from './resolve'
 
 describe('normalizeConfig / migrateConfig', () => {
@@ -133,5 +133,21 @@ describe('createNewProject', () => {
     expect(p.cloudThemeId).toBeNull()
     expect(p.exportThemeId).toMatch(/^KTS_[0-9a-z]{16}$/)
     expect(p.name).toBe('이름 없는 테마')
+  })
+})
+
+describe('normalizeOrigin', () => {
+  const shareId = 'abcdefghijkABCDEFGHJK2'
+
+  it('keeps a valid 복제 credit and trims long text', () => {
+    expect(normalizeOrigin({ shareId, name: '원본', ownerName: '제작자' })).toEqual({ shareId, name: '원본', ownerName: '제작자' })
+    expect(normalizeOrigin({ shareId, name: '가'.repeat(50), ownerName: '나'.repeat(50) })).toMatchObject({ name: '가'.repeat(30), ownerName: '나'.repeat(40) })
+  })
+
+  it('reads missing or malformed data as no origin', () => {
+    for (const bad of [undefined, null, 'x', { shareId: '../etc', name: 'a', ownerName: 'b' }, { shareId, name: 1, ownerName: 'b' }]) {
+      expect(normalizeOrigin(bad)).toBeNull()
+    }
+    expect(createNewProject().origin).toBeNull()
   })
 })

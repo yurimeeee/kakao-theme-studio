@@ -27,9 +27,9 @@ import {
   type CloudAssetEntry,
   type Visibility,
 } from '@/cloud/model'
-import { collectAssetIds, migrateConfig } from '@/domain/theme/normalize'
+import { collectAssetIds, migrateConfig, normalizeOrigin } from '@/domain/theme/normalize'
 import { mapLimit } from '@/lib/concurrency'
-import { CURRENT_SCHEMA_VERSION, type AssetId, type ThemeConfig, type ThemeProject } from '@/domain/theme/types'
+import { CURRENT_SCHEMA_VERSION, type AssetId, type ThemeConfig, type ThemeOrigin, type ThemeProject } from '@/domain/theme/types'
 
 export type CloudAssetSource = Pick<AssetRecord, 'blob' | 'mime' | 'width' | 'height' | 'size' | 'hash' | 'name'>
 
@@ -50,6 +50,9 @@ export interface CloudTheme extends CloudThemeSummary {
   config: ThemeConfig
   assetManifest: AssetManifest
   createdAt: number
+  /** The owner lets others 복제 the published copy (shown on the share page). */
+  allowRemix: boolean
+  origin: ThemeOrigin | null
 }
 
 export interface CloudSaveResult {
@@ -104,6 +107,8 @@ function readTheme(id: string, data: Record<string, unknown>): CloudTheme {
     thumbnailPath: (data.thumbnailPath as string | null) ?? null,
     createdAt: millis(data.createdAt),
     updatedAt: millis(data.updatedAt, Date.now()),
+    allowRemix: data.allowRemix === true,
+    origin: normalizeOrigin(data.origin),
   }
 }
 
@@ -259,6 +264,8 @@ export class CloudThemeRepository {
           thumbnailPath,
           createdAt: prev?.createdAt ?? serverTimestamp(),
           updatedAt: serverTimestamp(),
+          allowRemix: prev?.allowRemix === true,
+          origin: project.origin ?? null,
         })
         return { themeId: themeRef.id, revisionId, ownerId: uid, visibility, shareId }
       })

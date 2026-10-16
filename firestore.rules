@@ -9,6 +9,8 @@ rules_version = '2';
 //                             비공개 = no share document at all.
 // downloadMarks/{markId}      server only (download de-duplication)
 //
+// allowRemix (theme + share) is the owner's 복제 허용; origin credits the share a theme was cloned from.
+//
 // downloadCount and searchTokens are written only by Cloud Functions (Admin SDK bypasses
 // these rules). Every client-written document has a fixed field list (hasOnly) so nothing
 // unvalidated can be stored alongside the checked fields.
@@ -23,6 +25,18 @@ service cloud.firestore {
     function validName(n) {
       return n is string && n.size() > 0 && n.size() <= 30;
     }
+    // 복제 credit: the share a theme was cloned from. Optional on documents written before it existed.
+    function validOrigin(d) {
+      return !('origin' in d) || d.origin == null
+        || (d.origin is map
+          && d.origin.keys().hasOnly(['shareId', 'name', 'ownerName'])
+          && d.origin.shareId is string && d.origin.shareId.size() <= 40
+          && d.origin.name is string && d.origin.name.size() <= 30
+          && d.origin.ownerName is string && d.origin.ownerName.size() <= 40);
+    }
+    function validAllowRemix(d) {
+      return !('allowRemix' in d) || d.allowRemix is bool;
+    }
 
     match /users/{userId} {
       allow read: if signedIn() && uid() == userId;
@@ -36,8 +50,11 @@ service cloud.firestore {
     match /themes/{themeId} {
       function validTheme(d) {
         return d.keys().hasOnly(['ownerId', 'name', 'visibility', 'shareId', 'activeRevisionId', 'previousRevisionId',
-            'schemaVersion', 'config', 'assetManifest', 'exportThemeId', 'thumbnailPath', 'createdAt', 'updatedAt'])
+            'schemaVersion', 'config', 'assetManifest', 'exportThemeId', 'thumbnailPath', 'createdAt', 'updatedAt',
+            'allowRemix', 'origin'])
           && d.ownerId == uid()
+          && validOrigin(d)
+          && validAllowRemix(d)
           && validName(d.name)
           && d.visibility in ['private', 'public', 'unlisted']
           && (d.shareId == null || (d.shareId is string && d.shareId.size() <= 40))
@@ -78,8 +95,10 @@ service cloud.firestore {
       function validShare(d) {
         return d.keys().hasOnly(['ownerId', 'themeId', 'visibility', 'name', 'ownerName', 'schemaVersion', 'exportThemeId',
             'revisionId', 'status', 'config', 'assetManifest', 'thumbnailPath', 'downloadCount', 'publishedAt', 'updatedAt',
-            'searchTokens'])
+            'searchTokens', 'allowRemix', 'origin'])
           && d.ownerId == uid()
+          && validOrigin(d)
+          && validAllowRemix(d)
           && d.visibility in ['public', 'unlisted']
           && d.status in ['preparing', 'ready']
           && validName(d.name)

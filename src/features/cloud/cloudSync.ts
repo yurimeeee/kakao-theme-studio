@@ -4,7 +4,8 @@ import { CloudError } from '@/cloud/errors'
 import type { Visibility } from '@/cloud/model'
 import { createAssetId, createExportThemeId, createLocalProjectId } from '@/domain/theme/ids'
 import { collectAssetIds, mapAssetRefs } from '@/domain/theme/normalize'
-import type { AssetId, ThemeProject } from '@/domain/theme/types'
+import { createNewProject } from '@/domain/theme/defaults'
+import type { AssetId, LocalProjectId, ThemeProject } from '@/domain/theme/types'
 import type { SharedTheme } from '@/repositories/cloud/shares'
 import { flushAutosave } from '../editor/autosave'
 import { useEditor } from '../editor/store'
@@ -151,6 +152,7 @@ export async function openCloudTheme(themeId: string, options: { replace?: boole
     updatedAt: now,
     savedAt: now,
     revision: existing?.revision ?? 0,
+    origin: theme.origin,
   }
   // The open editor copy is being replaced on purpose: drop it without writing it back.
   if (useEditor.getState().project?.id === localId) useEditor.getState().close()
@@ -165,6 +167,41 @@ export async function exportCloudTheme(themeId: string): Promise<string> {
   if (!theme) throw new CloudError('not-found', 'Theme not found')
   const blobs = await rt.themes.downloadAssets(theme)
   return exportConfig({ name: theme.name, exportThemeId: theme.exportThemeId, revision: 0, config: theme.config, blobs })
+}
+
+/**
+ * 내 작업으로 복제 (only when the owner allows it): a new local project with new ids, the
+ * shared images copied in, and the original credited in `origin`. Works signed out; nothing
+ * is written to the cloud and no download is counted.
+ */
+export async function cloneSharedTheme(share: SharedTheme, blobs: ReadonlyMap<AssetId, Blob>): Promise<LocalProjectId> {
+  if (!share.allowRemix) throw new CloudError('permission', 'Remix not allowed')
+  const now = Date.now()
+  const localId = createLocalProjectId()
+  const idMap = new Map<AssetId, AssetId>()
+  const records: AssetRecord[] = []
+  for (const [sharedId, entry] of Object.entries(share.assetManifest)) {
+    const blob = blobs.get(sharedId)
+    if (!blob) continue
+    const id = createAssetId()
+    idMap.set(sharedId, id)
+    records.push({ id, projectId: localId, blob, mime: entry.mime, width: entry.width, height: entry.height, size: entry.size, hash: entry.hash, name: entry.name, createdAt: now, lastAttachedAt: now })
+  }
+  const thumbnail = share.thumbnailPath
+    ? await loadCloud()
+        .then((rt) => rt.shares.downloadThumbnail(share.thumbnailPath!))
+        .catch(() => null)
+    : null
+  const project: ThemeProject = {
+    ...createNewProject(now),
+    id: localId,
+    name: share.name,
+    config: mapAssetRefs(share.config, (id) => idMap.get(id) ?? null),
+    // Credit the first creator when the shared theme is itself a 복제.
+    origin: share.origin ?? { shareId: share.id, name: share.name, ownerName: share.ownerName },
+  }
+  await getRepositories().projects.replaceFromCloud(project, records, thumbnail)
+  return localId
 }
 
 /** Shared theme download (anyone). Never creates a local or cloud project for the downloader. */

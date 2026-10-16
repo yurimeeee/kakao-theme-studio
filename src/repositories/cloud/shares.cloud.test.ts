@@ -233,4 +233,45 @@ describe('ShareRepository (emulator)', () => {
     await expect(call({ shareId: 'nope' })).rejects.toMatchObject({ code: 'functions/invalid-argument' })
     await expect(call({ shareId: 'Z'.repeat(22) })).rejects.toMatchObject({ code: 'functions/not-found' })
   })
+
+  it('복제 허용: stored on the theme, mirrored to the share, kept across saves and re-publishing', async () => {
+    const { themes, shares, project, assets, saved } = await ownerWithTheme('복제 테마')
+    const { shareId } = await shares.setVisibility(saved.themeId, 'unlisted')
+    const anon = new ShareRepository(anonymousClient())
+    expect((await anon.get(shareId!))!.allowRemix).toBe(false)
+
+    await shares.setAllowRemix(saved.themeId, true)
+    expect((await anon.get(shareId!))!.allowRemix).toBe(true)
+
+    // A later save + re-publish keeps the owner's choice.
+    const again = await themes.save({ project: linked(project, saved), assets, thumbnail: png })
+    await shares.syncPublished(again.themeId)
+    expect((await themes.get(saved.themeId))!.allowRemix).toBe(true)
+    expect((await anon.get(shareId!))!.allowRemix).toBe(true)
+
+    // Nobody else can flip it.
+    const stranger = await signedInClient()
+    await expect(updateDoc(doc(stranger.db, 'shares', shareId!), { allowRemix: false })).rejects.toEqual(denied)
+    await expect(new ShareRepository(stranger).setAllowRemix(saved.themeId, false)).rejects.toMatchObject({ kind: 'not-found' })
+  })
+
+  it('a cloned theme keeps its origin through cloud save and publishing', async () => {
+    const remixer = await signedInClient('두 번째')
+    const themes = new CloudThemeRepository(remixer)
+    const { project, assets } = projectWithImages('가져온 테마')
+    const origin = { shareId: 'abcdefghijkABCDEFGHJK2', name: '원래 테마', ownerName: '처음 만든 사람' }
+    const saved = await themes.save({ project: { ...project, origin }, assets, thumbnail: png })
+    expect((await themes.get(saved.themeId))!.origin).toEqual(origin)
+    const { shareId } = await new ShareRepository(remixer, themes).setVisibility(saved.themeId, 'public')
+    expect((await new ShareRepository(anonymousClient()).get(shareId!))!.origin).toEqual(origin)
+  })
+
+  it('rules reject malformed origin and allowRemix values', async () => {
+    const { owner, saved } = await ownerWithTheme()
+    const ref_ = doc(owner.db, 'themes', saved.themeId)
+    await expect(updateDoc(ref_, { allowRemix: 'yes' })).rejects.toEqual(denied)
+    await expect(updateDoc(ref_, { origin: { shareId: 'x', name: 'a', ownerName: 'b', extra: 1 } })).rejects.toEqual(denied)
+    await expect(updateDoc(ref_, { origin: { shareId: 'x', name: 'a'.repeat(31), ownerName: 'b' } })).rejects.toEqual(denied)
+    await updateDoc(ref_, { allowRemix: true })
+  })
 })

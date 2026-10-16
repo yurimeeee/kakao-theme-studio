@@ -1,6 +1,6 @@
-import { ChevronLeft, Download, Share2 } from 'lucide-react'
+import { ChevronLeft, CopyPlus, Download, Share2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { galleryHref } from '@/app/router'
+import { editorHref, galleryHref, navigate, shareHref } from '@/app/router'
 import { AssetProvider, type PreviewAsset } from '@/assets/useAssetUrl'
 import { Button } from '@/components/ui/Button'
 import { Segmented } from '@/components/ui/Segmented'
@@ -12,7 +12,7 @@ import { VISIBILITY_LABELS } from '@/cloud/model'
 import type { AssetId, PreviewScreen } from '@/domain/theme/types'
 import type { SharedTheme } from '@/repositories/cloud/shares'
 import { loadCloud } from '../auth/session'
-import { exportSharedTheme, shareUrl } from '../cloud/cloudSync'
+import { cloneSharedTheme, exportSharedTheme, shareUrl } from '../cloud/cloudSync'
 import { SCREEN_OPTIONS } from '../editor/elements'
 import { exportErrorMessage } from '../export/exportProject'
 import { ThemePreview } from '../preview/ThemePreview'
@@ -41,6 +41,7 @@ export function ThemeDetailPage({ shareId }: { shareId: string }) {
   const [screen, setScreen] = useState<PreviewScreen>('chatroom')
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [cloning, setCloning] = useState(false)
 
   const load = useCallback(async () => {
     setState({ kind: 'loading' })
@@ -98,6 +99,19 @@ export function ThemeDetailPage({ shareId }: { shareId: string }) {
       setDownloading(false)
     }
   }
+  const clone = async () => {
+    if (cloning) return
+    setCloning(true)
+    setDownloadError(null)
+    try {
+      const id = await cloneSharedTheme(share, blobs)
+      toast('내 작업에 복제했어요. 이 기기에 보관돼요.')
+      navigate(editorHref(id))
+    } catch {
+      setDownloadError('복제하지 못했어요. 저장 공간을 확인한 뒤 다시 시도해 주세요.')
+      setCloning(false)
+    }
+  }
   const share_ = async () => {
     const url = shareUrl(share.id)
     if (typeof navigator.share === 'function') {
@@ -131,12 +145,27 @@ export function ThemeDetailPage({ shareId }: { shareId: string }) {
           <p className="text-[14px] text-sub">
             by {share.ownerName} · 다운로드 {share.downloadCount.toLocaleString('ko-KR')}회
           </p>
+          {share.origin && (
+            <p className="text-[13px] text-sub" data-testid="share-origin">
+              원본{' '}
+              <a href={shareHref(share.origin.shareId)} className="font-medium text-ink underline underline-offset-2">
+                {share.origin.name}
+              </a>{' '}
+              · by {share.origin.ownerName}
+            </p>
+          )}
           <div className="my-2 h-px bg-hair" />
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => void download()} busy={downloading}>
               {!downloading && <Download className="size-4" aria-hidden />}
               {downloading ? '테마를 준비하고 있어요.' : '.ktheme 다운로드'}
             </Button>
+            {share.allowRemix && (
+              <Button variant="soft" onClick={() => void clone()} busy={cloning} disabled={downloading}>
+                {!cloning && <CopyPlus className="size-4" aria-hidden />}
+                내 작업으로 복제
+              </Button>
+            )}
             <Button variant="soft" onClick={() => void share_()}>
               <Share2 className="size-4" aria-hidden />
               공유
@@ -147,7 +176,10 @@ export function ThemeDetailPage({ shareId }: { shareId: string }) {
               {downloadError}
             </p>
           )}
-          <p className="text-[13px] text-sub">로그인 없이 다운로드할 수 있어요.</p>
+          <p className="text-[13px] text-sub">
+            로그인 없이 다운로드할 수 있어요.
+            {share.allowRemix ? ' 제작자가 복제를 허용해서, 내 작업으로 가져와 고칠 수도 있어요.' : ''}
+          </p>
           <p className="rounded-[var(--radius-field)] bg-canvas px-4 py-3 text-[13px] leading-relaxed text-sub">
             카카오톡 앱에서의 실제 적용은 아직 기기 검증 중이에요. 파일은 이 브라우저에서 만들어져요.
           </p>

@@ -29,9 +29,9 @@ import {
   type Visibility,
 } from '@/cloud/model'
 import { THEME_NAME_MAX_LENGTH } from '@/domain/theme/defaults'
-import { migrateConfig, removeAssetRefs } from '@/domain/theme/normalize'
+import { migrateConfig, normalizeOrigin, removeAssetRefs } from '@/domain/theme/normalize'
 import { activeAssetIds, resolveTheme } from '@/domain/theme/resolve'
-import { CURRENT_SCHEMA_VERSION, type AssetId, type ThemeConfig } from '@/domain/theme/types'
+import { CURRENT_SCHEMA_VERSION, type AssetId, type ThemeConfig, type ThemeOrigin } from '@/domain/theme/types'
 import { mapLimit } from '@/lib/concurrency'
 import { CloudThemeRepository, downloadManifest, fetchBlob, IO_CONCURRENCY, requireUid, type CloudDeps, type CloudTheme } from './cloudThemes'
 
@@ -51,6 +51,10 @@ export interface SharedTheme {
   downloadCount: number
   publishedAt: number
   updatedAt: number
+  /** The owner allows 내 작업으로 복제. Download is always allowed; this is a separate permission. */
+  allowRemix: boolean
+  /** Credit for a theme that was itself cloned from another share. */
+  origin: ThemeOrigin | null
 }
 
 export type SharedThemeCard = Pick<SharedTheme, 'id' | 'name' | 'ownerName' | 'thumbnailPath' | 'downloadCount' | 'publishedAt'>
@@ -84,6 +88,8 @@ function readShare(id: string, data: Record<string, unknown>): SharedTheme {
     downloadCount: typeof data.downloadCount === 'number' ? data.downloadCount : 0,
     publishedAt: millis(data.publishedAt),
     updatedAt: millis(data.updatedAt),
+    allowRemix: data.allowRemix === true,
+    origin: normalizeOrigin(data.origin),
   }
 }
 
@@ -132,6 +138,24 @@ export class ShareRepository {
       const theme = await this.themes.get(themeId)
       if (!theme || theme.visibility === 'private') return
       await this.applyVisibility(theme, theme.visibility, options)
+    } catch (error) {
+      throw toCloudError(error)
+    }
+  }
+
+  /**
+   * 복제 허용 on/off. Stored on the theme (kept across saves and re-publishing) and mirrored to
+   * the current share so the share page shows or hides 내 작업으로 복제 at once.
+   */
+  async setAllowRemix(themeId: string, allowRemix: boolean): Promise<void> {
+    requireUid(this.deps.auth)
+    try {
+      const theme = await this.themes.get(themeId)
+      if (!theme) throw new CloudError('not-found', 'Theme not found')
+      await updateDoc(doc(this.deps.db, 'themes', themeId), { allowRemix })
+      if (theme.shareId && (await this.existingShare(theme.shareId))) {
+        await updateDoc(doc(this.deps.db, 'shares', theme.shareId), { allowRemix, updatedAt: serverTimestamp() })
+      }
     } catch (error) {
       throw toCloudError(error)
     }
@@ -186,6 +210,8 @@ export class ShareRepository {
       schemaVersion: CURRENT_SCHEMA_VERSION,
       exportThemeId: theme.exportThemeId,
       revisionId: theme.activeRevisionId,
+      allowRemix: theme.allowRemix,
+      origin: theme.origin,
       updatedAt: serverTimestamp(),
     }
     if (!existing) {

@@ -15,6 +15,8 @@ export interface ProjectRow {
   updatedAt: number
   savedAt: number | null
   revision: number
+  /** 복제 source; missing on rows written before it existed. */
+  origin?: unknown
 }
 
 export interface ThumbnailRow {

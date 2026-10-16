@@ -157,6 +157,14 @@ export interface ThemeConfig {
 
 export type LocalProjectId = string
 
+/** Where a 복제 (remix) came from: kept so the original creator stays credited. */
+export interface ThemeOrigin {
+  /** Share link id of the original (`#/t/{shareId}`); the link may later stop working. */
+  shareId: string
+  name: string
+  ownerName: string
+}
+
 export interface ThemeProject {
   /** Local id (`lp_…`). Never reused as a cloud id. */
   id: LocalProjectId
@@ -180,6 +188,8 @@ export interface ThemeProject {
   savedAt: number | null
   /** Incremented on every successful local write. */
   revision: number
+  /** Set when this project was cloned from someone's shared theme; null otherwise. */
+  origin: ThemeOrigin | null
 }
 
 export type ElementKey =

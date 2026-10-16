@@ -104,5 +104,6 @@ export function createNewProject(now = Date.now()): ThemeProject {
     updatedAt: now,
     savedAt: null,
     revision: 0,
+    origin: null,
   }
 }
