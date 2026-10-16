@@ -194,6 +194,9 @@ pnpm e2e:cloud          # 실제 브라우저 E2E (빌드 → preview → Playwr
    firebase functions:secrets:set DOWNLOAD_SALT        # 임의의 긴 문자열
    # 선택: App Check를 등록하고 웹에 VITE_FIREBASE_APPCHECK_SITE_KEY를 배포한 뒤에만
    # REQUIRE_APP_CHECK=true   (functions/.env.<projectId>)
+   # 비대화형 배포는 기본값이 있는 파라미터도 env 파일에 값이 있어야 함 (REQUIRE_APP_CHECK=false 등)
+   # AUTH_TRIGGER_SERVICE_ACCOUNT=<번호>-compute@developer.gserviceaccount.com
+   #   onUserDeleted는 1st Gen이라 기본값이 App Engine 서비스 계정인데, 이 프로젝트에는 없음
    # functions/.env.<projectId>
    KAKAO_REST_API_KEY=...
    KAKAO_REDIRECT_URIS=https://<도메인>/auth/kakao/callback
