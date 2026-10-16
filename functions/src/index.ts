@@ -3,9 +3,11 @@ import { getAuth } from 'firebase-admin/auth'
 import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
 import { logger, setGlobalOptions } from 'firebase-functions'
+import { region as regionV1 } from 'firebase-functions/v1'
 import { defineSecret, defineString } from 'firebase-functions/params'
 import { onDocumentDeleted, onDocumentWritten } from 'firebase-functions/v2/firestore'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
+import { isRecentLogin } from './account.js'
 import { clientIp, downloadActor, downloadMarkId, MARK_TTL_MS, SHARE_ID_PATTERN, utcDay } from './downloads.js'
 import { exchangeKakaoCode, isAllowedRedirect, KakaoAuthError, kakaoUid, type FetchLike } from './kakao.js'
 import { sameTokens, searchTokens } from './search.js'
@@ -130,3 +132,42 @@ export const onShareWritten = onDocumentWritten({ document: 'shares/{shareId}', 
     throw error
   }
 })
+
+/**
+ * Removes everything an account owns: shares first (public access ends at once), then
+ * themes with their revisions, the owner's Storage folder and the profile document.
+ * Idempotent — runs from deleteAccount and again from the Auth deletion trigger.
+ */
+async function purgeUserData(uid: string): Promise<void> {
+  const db = getFirestore()
+  const shares = await db.collection('shares').where('ownerId', '==', uid).get()
+  await Promise.all(shares.docs.map((d) => d.ref.delete()))
+  const themes = await db.collection('themes').where('ownerId', '==', uid).get()
+  for (const theme of themes.docs) await db.recursiveDelete(theme.ref)
+  await getStorage().bucket().deleteFiles({ prefix: `users/${uid}/` })
+  await db.collection('users').doc(uid).delete()
+}
+
+/** 회원 탈퇴: deletes the caller's data, then the Auth account. Requires a recent sign-in. */
+export const deleteAccount = onCall({ invoker: 'public' }, async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'sign-in-required')
+  if (!isRecentLogin(request.auth?.token.auth_time, Date.now())) throw new HttpsError('failed-precondition', 'recent-login-required')
+  try {
+    await purgeUserData(uid)
+    await getAuth().deleteUser(uid)
+  } catch (error) {
+    if ((error as { code?: string }).code === 'auth/user-not-found') return { deleted: true }
+    logger.error('deleteAccount failed', error)
+    throw new HttpsError('internal', 'delete-account-failed')
+  }
+  return { deleted: true }
+})
+
+/** An account removed elsewhere (Firebase console, Admin SDK): clean up its data too. */
+export const onUserDeleted = regionV1('asia-northeast3')
+  .runWith({ failurePolicy: true })
+  .auth.user()
+  .onDelete(async (user) => {
+    await purgeUserData(user.uid)
+  })

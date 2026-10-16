@@ -81,3 +81,13 @@ export async function adminDocExists(path: string): Promise<boolean> {
   if (!res.ok) throw new Error(`Emulator read failed: ${res.status}`)
   return true
 }
+
+/** Lists Storage object names under a prefix with rules bypassed, for asserting server-side cleanup. */
+export async function adminListFiles(prefix: string): Promise<string[]> {
+  const bucket = EMULATOR_CONFIG.firebase.storageBucket
+  const url = `http://127.0.0.1:9199/v0/b/${bucket}/o?prefix=${encodeURIComponent(prefix)}`
+  const res = await fetch(url, { headers: { Authorization: 'Bearer owner' } })
+  if (!res.ok) throw new Error(`Emulator list failed: ${res.status}`)
+  const body = (await res.json()) as { items?: { name: string }[] }
+  return (body.items ?? []).map((i) => i.name)
+}

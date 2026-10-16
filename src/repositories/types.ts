@@ -51,6 +51,8 @@ export interface ProjectRepository {
   replaceFromCloud(project: ThemeProject, assets: AssetRecord[], thumbnail: Blob | null): Promise<ThemeProject>
   /** Removes every local copy linked to `ownerId` (sign-out with "이 기기에서 지우기"). Returns the count. */
   deleteByCloudOwner(ownerId: string): Promise<number>
+  /** Turns every copy linked to `ownerId` into a local-only project (회원 탈퇴 keeping this device's work). Returns the count. */
+  unlinkCloudOwner(ownerId: string): Promise<number>
 }
 
 export interface AssetRepository {

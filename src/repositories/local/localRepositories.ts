@@ -166,6 +166,20 @@ export class LocalProjectRepository implements ProjectRepository {
       return ids.length
     })
   }
+
+  unlinkCloudOwner(ownerId: string): Promise<number> {
+    return guard(() =>
+      this.db.transaction('rw', this.db.projects, async () => {
+        const rows = (await this.db.projects.toArray()).filter((r) => r.cloudOwnerId === ownerId)
+        const now = Date.now()
+        // A new revision makes any stale in-memory copy fail its next save instead of re-linking.
+        await this.db.projects.bulkPut(
+          rows.map((r) => ({ ...r, cloudThemeId: null, cloudOwnerId: null, cloudRevisionId: null, revision: (r.revision ?? 0) + 1, updatedAt: now })),
+        )
+        return rows.length
+      }),
+    )
+  }
 }
 
 const stripBlob = ({ blob: _blob, ...meta }: AssetRecord): AssetMeta => meta

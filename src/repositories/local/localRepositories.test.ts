@@ -235,4 +235,19 @@ describe('cloud-linked local copies', () => {
     expect(await repos.assets.listMeta(mine.id)).toEqual([])
     expect(await repos.assets.listMeta(theirs.id)).toHaveLength(1)
   })
+
+  it('unlinkCloudOwner keeps that account’s copies as local-only projects with their assets', async () => {
+    const mine = { ...createNewProject(), cloudThemeId: 't1', cloudOwnerId: 'uid-a', cloudRevisionId: 'r1' }
+    const theirs = { ...createNewProject(), cloudThemeId: 't2', cloudOwnerId: 'uid-b', cloudRevisionId: 'r1' }
+    await repos.assets.put(record(mine.id, 'ast_m', [3]))
+    const saved = await save({ ...mine, config: { ...mine.config, profile: { mode: 'image', imageAssetId: 'ast_m' } } })
+    await save(theirs)
+    expect(await repos.projects.unlinkCloudOwner('uid-a')).toBe(1)
+    const after = await repos.projects.get(mine.id)
+    expect(after).toMatchObject({ cloudThemeId: null, cloudOwnerId: null, cloudRevisionId: null, revision: saved.revision + 1 })
+    expect(await repos.assets.listMeta(mine.id)).toHaveLength(1)
+    expect((await repos.projects.get(theirs.id))?.cloudOwnerId).toBe('uid-b')
+    // The stale in-memory copy can no longer overwrite the unlinked row.
+    await expect(repos.projects.save(saved, { snapshotAt: Date.now() })).rejects.toMatchObject({ kind: 'conflict' })
+  })
 })

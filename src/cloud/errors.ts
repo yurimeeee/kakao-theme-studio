@@ -9,6 +9,7 @@ export type CloudErrorKind =
   | 'network'
   | 'quota'
   | 'not-found'
+  | 'recent-login' // 회원 탈퇴 needs a fresh sign-in
   | 'unknown'
 
 export class CloudError extends Error {
@@ -28,6 +29,9 @@ export function toCloudError(error: unknown): CloudError {
   const kind: CloudErrorKind = (() => {
     if (/unauthenticated|unauthorized-domain|user-token-expired/.test(code)) return 'unauthenticated'
     if (/permission-denied|unauthorized/.test(code)) return 'permission'
+    if (/failed-precondition/.test(code) && /recent-login-required/.test(String((error as { message?: unknown })?.message ?? ''))) {
+      return 'recent-login'
+    }
     if (/not-found|object-not-found/.test(code)) return 'not-found'
     if (/quota-exceeded|resource-exhausted/.test(code)) return 'quota'
     if (/unavailable|network-request-failed|retry-limit-exceeded|deadline-exceeded|canceled/.test(code)) return 'network'
@@ -59,6 +63,8 @@ export function cloudErrorMessage(error: unknown): string {
       return '클라우드 저장 한도를 넘었어요. 잠시 뒤 다시 시도해 주세요.'
     case 'not-found':
       return '이 테마를 볼 수 없어요.'
+    case 'recent-login':
+      return '보안을 위해 로그아웃한 뒤 다시 로그인하고 탈퇴해 주세요.'
     default:
       return '클라우드에 저장하지 못했어요. 다시 시도해 주세요.'
   }

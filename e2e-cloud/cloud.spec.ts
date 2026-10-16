@@ -194,3 +194,34 @@ test('두 기기에서 같은 테마를 저장하면 덮어쓰지 않고 충돌�
   await expect(page.getByTestId('theme-name')).toHaveText(`${name} B`)
   await other.context().close()
 })
+
+test('회원 탈퇴: 클라우드 테마와 공유 링크가 사라지고 이 기기 사본은 로그인 없는 작업으로 남는다', async ({ page, browser }) => {
+  await freshApp(page)
+  await signUp(page, newAccount('떠나는 사람'))
+  const name = `탈퇴 ${uniqueTag()}`
+  await saveTheme(page, name, '링크 공개')
+  await page.getByRole('button', { name: '공유', exact: true }).click()
+  const share = page.getByRole('dialog', { name: '테마 공유' })
+  const url = await share.getByLabel('공유 링크').inputValue()
+  await share.getByRole('button', { name: '닫기' }).first().click()
+
+  await page.getByRole('banner').getByRole('button', { name: '내 계정' }).click()
+  await page.getByRole('dialog', { name: '내 계정' }).getByRole('button', { name: '회원 탈퇴' }).click()
+  const dialog = page.getByRole('dialog', { name: '회원 탈퇴' })
+  await expect(dialog.getByText('이 기기에 있는 사본 1개는 로그인 없이 쓰는 내 작업으로 남겨요.')).toBeVisible()
+  const confirm = dialog.getByRole('button', { name: '탈퇴하기' })
+  await expect(confirm).toBeDisabled()
+  await dialog.getByRole('checkbox', { name: '안내를 확인했고 탈퇴할게요' }).check()
+  await confirm.click()
+  await expect(page.getByText('탈퇴했어요. 그동안 이용해 주셔서 고마워요.')).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('banner').getByRole('button', { name: '로그인', exact: true })).toBeVisible()
+
+  // The local copy stays, now unlinked, and is visible while signed out.
+  await page.goto('/#/projects')
+  await expect(page.getByTestId('project-item').filter({ hasText: name })).toBeVisible()
+
+  const visitor = await newDevice(browser)
+  await visitor.goto(url)
+  await expect(visitor.getByText('이 테마를 볼 수 없어요.')).toBeVisible()
+  await visitor.context().close()
+})

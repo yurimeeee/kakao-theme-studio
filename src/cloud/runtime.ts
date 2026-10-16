@@ -3,7 +3,7 @@ import { CloudThemeRepository } from '@/repositories/cloud/cloudThemes'
 import { ShareRepository } from '@/repositories/cloud/shares'
 import { getAuthRuntime } from './authRuntime'
 import { cloudConfig, type CloudConfig } from './config'
-import { CloudError } from './errors'
+import { CloudError, toCloudError } from './errors'
 import { addDataServices, type CloudServices } from './firebase'
 
 /**
@@ -18,6 +18,8 @@ export interface CloudRuntime {
   authApi: ReturnType<typeof getAuthRuntime>['authApi']
   /** kakaoSignIn callable: authorization code → Firebase custom token. */
   exchangeKakaoCode: (code: string, redirectUri: string) => Promise<string>
+  /** deleteAccount callable: removes the signed-in account and all of its cloud data. */
+  deleteAccount: () => Promise<void>
 }
 
 let runtime: CloudRuntime | null = null
@@ -28,6 +30,7 @@ export function getCloudRuntime(): CloudRuntime {
     const base = getAuthRuntime()
     const services = addDataServices(base, cloudConfig)
     const kakao = httpsCallable<{ code: string; redirectUri: string }, { token: string }>(services.functions, 'kakaoSignIn')
+    const removeAccount = httpsCallable<void, { deleted: boolean }>(services.functions, 'deleteAccount')
     const themes = new CloudThemeRepository(services)
     runtime = {
       config: cloudConfig,
@@ -36,6 +39,13 @@ export function getCloudRuntime(): CloudRuntime {
       shares: new ShareRepository(services, themes),
       authApi: base.authApi,
       exchangeKakaoCode: async (code, redirectUri) => (await kakao({ code, redirectUri })).data.token,
+      deleteAccount: async () => {
+        try {
+          await removeAccount()
+        } catch (error) {
+          throw toCloudError(error)
+        }
+      },
     }
   }
   return runtime
