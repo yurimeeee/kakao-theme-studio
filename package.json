@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --noEmit",
-    "lint": "oxlint src e2e e2e-cloud functions/src",
+    "lint": "oxlint src e2e e2e-cloud e2e-smoke functions/src",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",

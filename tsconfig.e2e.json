@@ -21,6 +21,7 @@
     "playwright.config.ts",
     "playwright.cloud.config.ts",
     "e2e",
-    "e2e-cloud"
+    "e2e-cloud",
+    "e2e-smoke"
   ]
 }
