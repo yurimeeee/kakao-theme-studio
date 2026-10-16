@@ -1,7 +1,8 @@
 import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
+import { contrastRatio, mix } from '@/domain/theme/color'
 import { createDefaultConfig } from '@/domain/theme/defaults'
-import type { ThemeConfig } from '@/domain/theme/types'
+import type { HexColor, ThemeConfig } from '@/domain/theme/types'
 import { FakeRasterizer, fakePng } from '@/test/fakeRasterizer'
 import { fitBubbleImage, flatLines, generatedBubbleGeometry, imageBubbleGeometry, isFlatSlot, rescaleLayout, type Pixels } from './bubbleGeometry'
 import { buildThemePackage, ExportError, type ExportSnapshot } from './buildPackage'
@@ -141,6 +142,17 @@ describe('createKthemeArchive', () => {
     for (const base of ['maintabIcoNow', 'maintabIcoNowSelected', 'maintabIcoShopping', 'maintabIcoShoppingSelected']) {
       expect(zip.file(`Images/${base}@3x.png`), base).not.toBeNull()
     }
+  })
+
+  it('derives the input bar menu button colors from the bar and keeps its text readable', async () => {
+    const config = createDefaultConfig()
+    config.headerInput = { ...config.headerInput, mode: 'color', inputBackground: '#1c1c1e', buttonColor: '#d0d0d0' }
+    const zip = await unzip((await createKthemeArchive(snapshot(config), new FakeRasterizer())).blob)
+    const bar = parseThemeCss(await zip.file('KakaoTalkTheme.css')!.async('string')).get('InputBarStyle-Chat')!
+    const menu = bar.get('-ios-button-normal-background-color') as HexColor
+    expect(menu).toBe(mix('#1c1c1e', '#d0d0d0', 0.06))
+    expect(contrastRatio(menu, bar.get('-ios-button-text-color') as HexColor)).toBeGreaterThanOrEqual(4.5)
+    expect(bar.get('-ios-button-normal-background-alpha')).toBe('1.0')
   })
 
   it('uses an uploaded theme icon for commonIcoTheme.png instead of the drawn one', async () => {

@@ -1,6 +1,6 @@
 /**
  * Selector → property names observed in the reference archives' KakaoTalkTheme.css
- * (TabBarStyle-Main: union of reference 1 and reference 2)
+ * (TabBarStyle-Main and InputBarStyle-Chat: union of reference 1 and reference 2)
  * (structure only; no values, images or author data). Used to guarantee the
  * serializer never invents properties. See docs/ktheme-format.md.
  */
@@ -15,7 +15,7 @@ export const REFERENCE_CSS_INVENTORY: Record<string, readonly string[]> = {
   'ButtonStyle-AddFriend': ['-ios-image'],
   'DefaultProfileStyle': ['-ios-profile-images'],
   'BackgroundStyle-ChatRoom': ['background-color', '-ios-background-image'],
-  'InputBarStyle-Chat': ['background-color', '-ios-send-normal-background-color', '-ios-send-normal-foreground-color', '-ios-send-highlighted-background-color', '-ios-send-highlighted-foreground-color', '-ios-button-normal-foreground-color', '-ios-button-highlighted-foreground-color'],
+  'InputBarStyle-Chat': ['background-color', '-ios-send-normal-background-color', '-ios-send-normal-foreground-color', '-ios-send-highlighted-background-color', '-ios-send-highlighted-foreground-color', '-ios-button-normal-foreground-color', '-ios-button-highlighted-foreground-color', '-ios-button-text-color', '-ios-button-normal-background-color', '-ios-button-normal-background-alpha'],
   'MessageCellStyle-Send': ['-ios-background-image', '-ios-selected-background-image', '-ios-group-background-image', '-ios-group-selected-background-image', '-ios-title-edgeinsets', '-ios-group-title-edgeinsets', '-ios-text-color', '-ios-selected-text-color', '-ios-unread-text-color'],
   'MessageCellStyle-Receive': ['-ios-background-image', '-ios-selected-background-image', '-ios-group-background-image', '-ios-group-selected-background-image', '-ios-title-edgeinsets', '-ios-group-title-edgeinsets', '-ios-text-color', '-ios-selected-text-color', '-ios-unread-text-color'],
   'BackgroundStyle-Passcode': ['background-color', '-ios-background-image'],

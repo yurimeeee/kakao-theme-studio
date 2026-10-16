@@ -174,7 +174,7 @@ export function ChatRoomScreen({ theme }: { theme: ResolvedTheme }) {
       </div>
       <div className="flex shrink-0 items-center gap-2 px-2.5 pb-6 pt-2" style={{ background: theme.inputBar.background }}>
         <Plus className="size-5 shrink-0" style={{ color: theme.inputBar.button }} aria-hidden />
-        <div className="flex h-8 min-w-0 flex-1 items-center rounded-full px-3 text-[11px]" style={{ background: 'rgb(127 127 127 / 0.1)', color: theme.palette.subText }}>
+        <div className="flex h-8 min-w-0 flex-1 items-center rounded-full px-3 text-[11px]" style={{ background: theme.inputBar.menuBackground, color: theme.palette.subText }}>
           메시지 입력
         </div>
         <Smile className="size-5 shrink-0" style={{ color: theme.inputBar.button }} aria-hidden />

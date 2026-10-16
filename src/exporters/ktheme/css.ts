@@ -43,7 +43,7 @@ export interface ThemeCssModel {
   }
   profileImage: string
   chatroom: { backgroundColor: HexColor; backgroundImage: string }
-  inputBar: { background: HexColor; sendBackground: HexColor; sendForeground: HexColor; button: HexColor }
+  inputBar: { background: HexColor; sendBackground: HexColor; sendForeground: HexColor; button: HexColor; menuBackground: HexColor; menuText: HexColor }
   send: BubbleCss
   receive: BubbleCss
   passcode: {
@@ -155,6 +155,10 @@ export function serializeThemeCss(m: ThemeCssModel): string {
       `-ios-send-highlighted-foreground-color: ${m.inputBar.sendForeground};`,
       `-ios-button-normal-foreground-color: ${m.inputBar.button};`,
       `-ios-button-highlighted-foreground-color: ${m.inputBar.button};`,
+      // Menu button (reference 2, "CUX 관련 버튼"): ignored by apps that do not know it.
+      `-ios-button-text-color: ${m.inputBar.menuText};`,
+      `-ios-button-normal-background-color: ${m.inputBar.menuBackground};`,
+      `-ios-button-normal-background-alpha: 1.0;`,
     ]),
     bubbleBlock('MessageCellStyle-Send', m.send),
     bubbleBlock('MessageCellStyle-Receive', m.receive),

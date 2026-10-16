@@ -11,7 +11,7 @@ import type { TabKey } from '@/domain/theme/types'
  * NOTHING here is device-verified yet. See docs/ktheme-format.md.
  */
 
-export const ADAPTER_VERSION = 'ios-css-ref2023-r1'
+export const ADAPTER_VERSION = 'ios-css-ref2023-r2'
 export const CSS_FILE_NAME = 'KakaoTalkTheme.css'
 export const IMAGES_DIR = 'Images'
 export const THEME_ICON_FILE = 'commonIcoTheme.png'

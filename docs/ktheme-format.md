@@ -1,7 +1,7 @@
 # `.ktheme` 형식 조사와 어댑터 근거 (iOS)
 
 - 작성일: 2026-10-11
-- 어댑터 버전: `ios-css-ref2023-r1` (`src/exporters/ktheme/catalog.ts`의 `ADAPTER_VERSION`)
+- 어댑터 버전: `ios-css-ref2023-r2` (`src/exporters/ktheme/catalog.ts`의 `ADAPTER_VERSION`)
 - 상태: **구조 검증 완료 / 기기 적용 검증 대기**
 
 이 문서는 생성 엔진이 따르는 규칙을 사실별로 근거와 함께 기록합니다. 근거 등급:
@@ -57,7 +57,21 @@ ManifestStyle {
 
 **생성 엔진 규칙**: 위 목록에 있는 선택자·속성만 출력합니다. 단위 테스트 `reference inventory guard`가 출력 CSS의 모든 선택자·속성이 참고 목록에 있는지 확인합니다. 웹 CSS(`border-radius` 등)는 출력하지 않습니다. 빈 블록은 만들지 않습니다.
 
-생성하지 않는 선택자: `ButtonStyle-AddFriend`(친구 추가 버튼 이미지 — 에디터 요소 없음), `DirectShareBar` 계열(대상 화면 미확인).
+생성하지 않는 선택자: `ButtonStyle-AddFriend`(친구 추가 버튼 이미지 — 에디터 요소 없음), `DirectShareBar` 계열(대상 화면 미확인), `BottomBannerStyle`(아래 §3.1).
+
+### 3.1 참고 2에만 있는 속성 (2026-10-16 검토)
+
+`~/Downloads`의 참고 테마 9개 CSS를 위 목록과 비교했습니다. 목록에 없는 선택자·속성은 참고 2 한 파일에만 있는 다음 다섯 가지뿐입니다.
+
+| 선택자 / 속성 | 참고 2 주석·값 | 결정 | 이유 |
+|---|---|---|---|
+| `InputBarStyle-Chat` `-ios-button-normal-background-color` | "메뉴버튼 배경 컬러" `#fafafa` (입력창 `#ffffff`) | **생성** — 입력창 배경에 기타 버튼 색을 6% 섞은 값 | 주석이 "CUX 관련 버튼 (신규추가)". 앱 기본값이 어두운 테마와 어긋나지 않도록 테마 색에서 파생. 별도 편집 항목은 두지 않음 |
+| `InputBarStyle-Chat` `-ios-button-text-color` | "인풋바 텍스트 컬러" `#000000` | **생성** — 위 배경에서 대비 4.5:1 이상인 주요 글자색 | 같음 |
+| `InputBarStyle-Chat` `-ios-button-normal-background-alpha` | `1.0` | **생성** — `1.0` | 같음 |
+| `BottomBannerStyle` `background-color` | 값만 있음(주석 없음) | 생성 안 함 | 어느 화면의 배너인지 근거 없음. 미리보기에서 광고·배너를 제거하는 제품 범위와도 맞지 않음 |
+| `TabBarStyle-Main` `-ios-call-{normal,selected}-icon-image` | "콜탭" | 생성 안 함 (§6) | 참고 2도 콜탭에 더보기 탭과 같은 그림을 쓰고 선택 상태도 같은 그림이라 실제 탭으로 쓴 흔적이 없음 |
+
+미리보기는 입력창의 "메시지 입력" 칸을 메뉴 버튼 배경색으로 그립니다. 이 속성이 실제로 어느 버튼에 적용되는지는 D13에서 확인합니다. 출력이 바뀌었으므로 어댑터 버전을 `r2`로 올렸습니다.
 
 ## 4. 에디터 요소 ↔ 리소스 매핑
 
@@ -70,6 +84,7 @@ ManifestStyle {
 | 보내는/받는 말풍선 | `MessageCellStyle-Send/Receive` | `chatroomBubble{Send,Receive}{01,02}[Selected]` | 생성 시 결정 | 아래 5절 | 참고 파일 |
 | 상단 글자 | `HeaderStyle-Main -ios-text-color` | — | — | 있음 | 참고 파일 |
 | 입력창 | `InputBarStyle-Chat` 배경·전송 버튼 배경/전경·기타 버튼 | — | — | 있음 | 참고 파일 |
+| 입력창 메뉴 버튼 | `InputBarStyle-Chat -ios-button-normal-background-{color,alpha}`, `-ios-button-text-color` | — | — | 참고 2만 | 참고 2 (값은 파생, §3.1) |
 | 기본 프로필 | `DefaultProfileStyle -ios-profile-images` | `profileImg01` | 100×100 | @3x 300×300만 있음 | 참고 파일 |
 | 탭 아이콘 | `TabBarStyle-Main -ios-{friends,chats,now,openchats,shopping,more}-{normal,selected}-icon-image` | `maintabIco{Friends,Chats,Now,Shopping,More}[Selected]` | 40×40 | @3x 120×120, @2x 76×76(38pt) | 참고 파일 (키: 참고 1·2, 파일 이름·크기: 참고 1) |
 | 탭 바 배경 | `TabBarStyle-Main background-color`, `-ios-background-image` | `maintabBgImage` | 470×49 | @2x 940×98, @3x 1410×147, 주석 "top-center-crop" | 참고 파일 |
@@ -157,7 +172,7 @@ MessageCellStyle-Send {
 - "지금(오픈채팅)" 탭 이미지는 참고 2와 같이 `now`와 `openchats` **두 키에 같은 파일**로 기록합니다. 구버전 앱의 오픈채팅 탭과 현행 지금 탭에 모두 적용되도록 하기 위함입니다.
 - 쇼핑 탭은 `shopping` 키로 기록합니다.
 - 파일 이름은 `maintabIcoNow[Selected]`, `maintabIcoShopping[Selected]` 형식을 씁니다. 크기는 다른 탭과 같은 40pt입니다.
-- `call`(콜탭)과 `piccoma`(일본 전용)는 국내 현행 하단 탭에서 의미가 확인되지 않아 제외했습니다.
+- `call`(콜탭)과 `piccoma`(일본 전용)는 국내 현행 하단 탭에서 의미가 확인되지 않아 제외했습니다. 참고 2는 `call`에 더보기 탭 그림(`mt5.png`)을 일반·선택 상태 모두에 그대로 넣어, 콜탭을 실제로 꾸민 흔적이 없습니다(2026-10-16 재검토). 기기에서 콜탭이 보이면 D14에 기록한 뒤 다시 판단합니다.
 - 사용자가 이미지를 올린 탭만 CSS에 기록하고, 나머지 탭은 앱 기본 아이콘을 그대로 둡니다.
 
 ## 7. 사용자 이미지 처리
@@ -197,5 +212,7 @@ MessageCellStyle-Send {
 | D10 | 같은 theme-id로 다시 내보낸 파일 설치 시 덮어쓰기/중복 | 대기 | |
 | D11 | 색상만 지정 시 `background-color` 단독 동작 여부 (현재는 단색 PNG를 함께 넣음) | 대기 | |
 | D12 | iOS Safari에서 다운로드 → 파일 앱/카카오톡 전달 → 적용 흐름 | 대기 | |
+| D13 | 입력창 메뉴 버튼 색(`-ios-button-normal-background-color`·`-ios-button-text-color`)이 어느 버튼에 적용되는가, 구버전 앱에서 무시되는가 | 대기 | |
+| D14 | 하단 탭에 콜탭이 보이는 앱 버전이 있는가 (`call` 키 생성 여부 판단) | 대기 | |
 
 웹 미리보기와 실제 앱 화면이 완전히 같다고 보장하지 않습니다. 차이는 위 표에 기록하고, 확인된 사실은 근거 등급을 "기기 검증"으로 올린 뒤 `ADAPTER_VERSION`을 올려 이후 내보내기 결과 변화를 추적합니다.

@@ -57,7 +57,11 @@ export interface ResolvedTheme {
   }
   header: { text: HexColor }
   chatroom: { background: ResolvedFill }
-  inputBar: { background: HexColor; sendBackground: HexColor; sendIcon: HexColor; button: HexColor }
+  /**
+   * menuBackground / menuText: the input bar's menu button (`-ios-button-normal-background-color`,
+   * `-ios-button-text-color`, reference 2 only). Derived, not edited separately.
+   */
+  inputBar: { background: HexColor; sendBackground: HexColor; sendIcon: HexColor; button: HexColor; menuBackground: HexColor; menuText: HexColor }
   bubbles: { send: ResolvedBubble; receive: ResolvedBubble }
   /** null → use the generated built-in default profile resource. */
   profileImageAssetId: AssetId | null
@@ -118,6 +122,12 @@ const resolvedCache = new WeakMap<ThemeConfig, ResolvedTheme>()
  * every edit, so one resolution is shared by the preview and every panel. Treat the
  * result as read-only.
  */
+/** Menu button: a faint tint of the button color on the bar (reference: #ffffff bar → #fafafa button). */
+function resolveInputBar(background: HexColor, sendBackground: HexColor, sendIcon: HexColor, button: HexColor, text: HexColor): ResolvedTheme['inputBar'] {
+  const menuBackground = mix(background, button, 0.06)
+  return { background, sendBackground, sendIcon, button, menuBackground, menuText: readableOn(menuBackground, text, 4.5) }
+}
+
 export function resolveThemeCached(config: ThemeConfig): ResolvedTheme {
   let theme = resolvedCache.get(config)
   if (!theme) {
@@ -169,12 +179,13 @@ export function resolveTheme(config: ThemeConfig): ResolvedTheme {
     },
     header: { text: custom ? hi.headerTextColor : palette.text },
     chatroom: { background: resolveFill(config.background.chatroom, chatroomDefault) },
-    inputBar: {
-      background: custom ? hi.inputBackground : palette.background,
+    inputBar: resolveInputBar(
+      custom ? hi.inputBackground : palette.background,
       sendBackground,
-      sendIcon: custom ? hi.sendIcon : readableOn(sendBackground, palette.text, 3),
-      button: custom ? hi.buttonColor : palette.subText,
-    },
+      custom ? hi.sendIcon : readableOn(sendBackground, palette.text, 3),
+      custom ? hi.buttonColor : palette.subText,
+      palette.text,
+    ),
     bubbles: {
       send: resolveBubble(config.bubbles.send, palette.accent, palette.text),
       receive: resolveBubble(config.bubbles.receive, palette.background, palette.text),

@@ -225,6 +225,8 @@ export async function buildThemePackage(snapshot: ExportSnapshot, raster: Raster
         sendBackground: theme.inputBar.sendBackground,
         sendForeground: theme.inputBar.sendIcon,
         button: theme.inputBar.button,
+        menuBackground: theme.inputBar.menuBackground,
+        menuText: theme.inputBar.menuText,
       },
       send,
       receive,
