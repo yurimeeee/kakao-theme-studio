@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { downloadActor, downloadMarkId, clientIp, utcDay } from './downloads.js'
+import { downloadActor, downloadMarkId, clientIp, ipShareCountId, rateLimitId, utcDay, utcHour } from './downloads.js'
 import { exchangeKakaoCode, isAllowedRedirect, KAKAO_TOKEN_URL, KakaoAuthError, kakaoUid, type FetchLike } from './kakao.js'
 
 const CODE = 'abcDEF123_-xyz0987'
@@ -92,5 +92,18 @@ describe('download de-duplication keys', () => {
     expect(clientIp({ 'x-forwarded-for': ['9.9.9.9', '203.0.113.7'] }, '127.0.0.1')).toBe('203.0.113.7')
     expect(clientIp({ 'x-forwarded-for': '203.0.113.7' }, '127.0.0.1')).toBe('203.0.113.7')
     expect(clientIp({}, '127.0.0.1')).toBe('127.0.0.1')
+  })
+})
+
+describe('download abuse limits', () => {
+  it('rate and per-IP ids are stable per window and differ across windows, IPs and shares', () => {
+    const t = Date.UTC(2026, 9, 16, 12, 30)
+    expect(utcHour(t)).toBe('2026-10-16T12')
+    expect(rateLimitId('ip:a', utcHour(t))).toBe(rateLimitId('ip:a', utcHour(t + 20 * 60_000)))
+    expect(rateLimitId('ip:a', utcHour(t))).not.toBe(rateLimitId('ip:a', utcHour(t + 60 * 60_000)))
+    expect(rateLimitId('ip:a', '2026-10-16T12')).not.toBe(rateLimitId('ip:b', '2026-10-16T12'))
+    expect(ipShareCountId('s1', 'ip:a', '2026-10-16')).not.toBe(ipShareCountId('s2', 'ip:a', '2026-10-16'))
+    // Never collides with a per-actor download mark.
+    expect(ipShareCountId('s1', 'ip:a', '2026-10-16')).not.toBe(downloadMarkId('s1', 'ip:a', '2026-10-16'))
   })
 })

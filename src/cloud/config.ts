@@ -14,6 +14,8 @@ export interface CloudConfig {
   functionsRegion: string
   /** Kakao REST API key (= OAuth client_id, public). null hides 카카오 로그인 as 준비 중. */
   kakaoClientId: string | null
+  /** reCAPTCHA Enterprise site key for App Check (public). null = App Check off. */
+  appCheckSiteKey: string | null
 }
 
 export const DEFAULT_FUNCTIONS_REGION = 'asia-northeast3'
@@ -44,6 +46,7 @@ export function readCloudConfig(env: Env): CloudConfig | null {
     emulatorHost,
     functionsRegion: str(env, 'VITE_FIREBASE_FUNCTIONS_REGION') ?? DEFAULT_FUNCTIONS_REGION,
     kakaoClientId: str(env, 'VITE_KAKAO_REST_API_KEY'),
+    appCheckSiteKey: str(env, 'VITE_FIREBASE_APPCHECK_SITE_KEY'),
   }
 }
 

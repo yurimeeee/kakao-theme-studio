@@ -24,6 +24,15 @@ export function addDataServices(base: CloudAuthServices, config: CloudConfig): C
     connectFirestoreEmulator(db, host, EMULATOR_PORTS.firestore)
     connectStorageEmulator(storage, host, EMULATOR_PORTS.storage)
     connectFunctionsEmulator(functions, host, EMULATOR_PORTS.functions)
+  } else if (config.appCheckSiteKey) {
+    // Attests calls to Functions (download counting) when configured. Loaded on demand so
+    // builds without a site key do not ship it; a call before it is ready simply is not counted.
+    const siteKey = config.appCheckSiteKey
+    void import('firebase/app-check')
+      .then(({ initializeAppCheck, ReCaptchaEnterpriseProvider }) =>
+        initializeAppCheck(base.app, { provider: new ReCaptchaEnterpriseProvider(siteKey), isTokenAutoRefreshEnabled: true }),
+      )
+      .catch(() => undefined)
   }
   return { ...base, db, storage, functions }
 }

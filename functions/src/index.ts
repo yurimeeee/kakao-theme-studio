@@ -4,11 +4,24 @@ import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
 import { logger, setGlobalOptions } from 'firebase-functions'
 import { region as regionV1 } from 'firebase-functions/v1'
-import { defineSecret, defineString } from 'firebase-functions/params'
+import { defineBoolean, defineSecret, defineString } from 'firebase-functions/params'
 import { onDocumentDeleted, onDocumentWritten } from 'firebase-functions/v2/firestore'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { isRecentLogin } from './account.js'
-import { clientIp, downloadActor, downloadMarkId, MARK_TTL_MS, SHARE_ID_PATTERN, utcDay } from './downloads.js'
+import {
+  clientIp,
+  downloadActor,
+  downloadMarkId,
+  IP_SHARE_DAILY_LIMIT,
+  ipShareCountId,
+  MARK_TTL_MS,
+  RATE_LIMIT_PER_HOUR,
+  RATE_TTL_MS,
+  rateLimitId,
+  SHARE_ID_PATTERN,
+  utcDay,
+  utcHour,
+} from './downloads.js'
 import { exchangeKakaoCode, isAllowedRedirect, KakaoAuthError, kakaoUid, type FetchLike } from './kakao.js'
 import { sameTokens, searchTokens } from './search.js'
 
@@ -23,6 +36,11 @@ const KAKAO_REDIRECT_URIS = defineString('KAKAO_REDIRECT_URIS', { default: '' })
 const KAKAO_CLIENT_SECRET = defineSecret('KAKAO_CLIENT_SECRET')
 /** Salt for hashing client IPs in download de-duplication. */
 const DOWNLOAD_SALT = defineSecret('DOWNLOAD_SALT')
+/**
+ * true = recordDownload ignores calls without a valid App Check token. Turn on only after
+ * App Check (reCAPTCHA Enterprise) is registered and VITE_FIREBASE_APPCHECK_SITE_KEY is deployed.
+ */
+const REQUIRE_APP_CHECK = defineBoolean('REQUIRE_APP_CHECK', { default: false })
 
 /**
  * 카카오 로그인: authorization code → Kakao token (server) → Kakao user id →
@@ -75,23 +93,42 @@ export const recordDownload = onCall({ secrets: [DOWNLOAD_SALT], invoker: 'publi
   const shareId = (request.data as { shareId?: unknown } | null)?.shareId
   if (typeof shareId !== 'string' || !SHARE_ID_PATTERN.test(shareId)) throw new HttpsError('invalid-argument', 'shareId')
 
+  // Without a valid App Check token the call is accepted but never counted (the client ignores the result).
+  if (REQUIRE_APP_CHECK.value() && !request.app) return { counted: false }
+
   const uid = request.auth?.uid ?? null
   const ip = clientIp(request.rawRequest.headers, request.rawRequest.ip)
-  const actor = downloadActor(uid, ip, DOWNLOAD_SALT.value() || 'kts-dev-salt')
+  const salt = DOWNLOAD_SALT.value() || 'kts-dev-salt'
+  const actor = downloadActor(uid, ip, salt)
+  const ipActor = downloadActor(null, ip, salt)
   const now = Date.now()
+  const day = utcDay(now)
   const db = getFirestore()
   const shareRef = db.collection('shares').doc(shareId)
-  const markRef = db.collection('downloadMarks').doc(downloadMarkId(shareId, actor, utcDay(now)))
+  const markRef = db.collection('downloadMarks').doc(downloadMarkId(shareId, actor, day))
+  const ipCountRef = db.collection('downloadMarks').doc(ipShareCountId(shareId, ipActor, day))
+  const rateRef = db.collection('downloadRates').doc(rateLimitId(ipActor, utcHour(now)))
+
+  // Checked outside the transaction so a flood of calls costs one read each and no writes.
+  const rate = await rateRef.get()
+  if ((rate.get('count') ?? 0) >= RATE_LIMIT_PER_HOUR) return { counted: false }
 
   const counted = await db.runTransaction(async (tx) => {
-    const [share, mark] = await Promise.all([tx.get(shareRef), tx.get(markRef)])
+    const [share, mark, ipCount] = await Promise.all([tx.get(shareRef), tx.get(markRef), tx.get(ipCountRef)])
     if (!share.exists || share.get('status') !== 'ready') throw new HttpsError('not-found', 'share')
     if (uid && share.get('ownerId') === uid) return false
     if (mark.exists) return false
-    tx.create(markRef, { shareId, createdAt: Timestamp.fromMillis(now), expiresAt: Timestamp.fromMillis(now + MARK_TTL_MS) })
+    const ipCounted: number = ipCount.get('count') ?? 0
+    if (ipCounted >= IP_SHARE_DAILY_LIMIT) return false
+    const expiresAt = Timestamp.fromMillis(now + MARK_TTL_MS)
+    tx.create(markRef, { shareId, createdAt: Timestamp.fromMillis(now), expiresAt })
+    tx.set(ipCountRef, { shareId, count: ipCounted + 1, expiresAt })
     tx.update(shareRef, { downloadCount: FieldValue.increment(1) })
     return true
   })
+  await rateRef
+    .set({ count: FieldValue.increment(1), expiresAt: Timestamp.fromMillis(now + RATE_TTL_MS) }, { merge: true })
+    .catch((error) => logger.warn('download rate counter not updated', error))
   return { counted }
 })
 

@@ -274,4 +274,41 @@ describe('ShareRepository (emulator)', () => {
     await expect(updateDoc(ref_, { origin: { shareId: 'x', name: 'a'.repeat(31), ownerName: 'b' } })).rejects.toEqual(denied)
     await updateDoc(ref_, { allowRemix: true })
   })
+
+  it('download abuse limits: per-IP cap per share per day, and an hourly call limit', async () => {
+    const { shares, saved } = await ownerWithTheme('남용 방지')
+    const { shareId } = await shares.setVisibility(saved.themeId, 'unlisted')
+    // Raw callable requests so each test uses its own client IP (rightmost X-Forwarded-For entry).
+    const call = async (ip: string, idToken?: string) => {
+      const res = await fetch('http://127.0.0.1:5001/demo-kakao-theme-studio/asia-northeast3/recordDownload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': ip, ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}) },
+        body: JSON.stringify({ data: { shareId } }),
+      })
+      return ((await res.json()) as { result: { counted: boolean } }).result.counted
+    }
+    const ip = `198.51.100.${Math.floor(Math.random() * 250) + 1}`
+    const accounts = await Promise.all([1, 2, 3, 4].map(() => signedInClient()))
+    const tokens = await Promise.all(accounts.map((a) => a.auth.currentUser!.getIdToken()))
+    // Three accounts on one network count; the fourth does not.
+    expect(await call(ip, tokens[0])).toBe(true)
+    expect(await call(ip, tokens[1])).toBe(true)
+    expect(await call(ip, tokens[2])).toBe(true)
+    expect(await call(ip, tokens[3])).toBe(false)
+    // Another network still counts.
+    expect(await call(`203.0.113.${Math.floor(Math.random() * 250) + 1}`, tokens[3])).toBe(true)
+    expect((await new ShareRepository(anonymousClient()).get(shareId!))!.downloadCount).toBe(4)
+
+    // Hourly limit: after 60 calls from one IP, even a fresh share is not counted.
+    const flood = `192.0.2.${Math.floor(Math.random() * 250) + 1}`
+    for (let i = 0; i < 60; i++) await call(flood)
+    const other = await ownerWithTheme('다른 테마')
+    const { shareId: otherId } = await other.shares.setVisibility(other.saved.themeId, 'unlisted')
+    const res = await fetch('http://127.0.0.1:5001/demo-kakao-theme-studio/asia-northeast3/recordDownload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': flood },
+      body: JSON.stringify({ data: { shareId: otherId } }),
+    })
+    expect(await res.json()).toEqual({ result: { counted: false } })
+  })
 })

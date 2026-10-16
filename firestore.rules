@@ -8,6 +8,7 @@ rules_version = '2';
 //                             (the random shareId is the link); only 공개 shares can be listed.
 //                             비공개 = no share document at all.
 // downloadMarks/{markId}      server only (download de-duplication)
+// downloadRates/{rateId}      server only (recordDownload calls per IP per hour)
 //
 // allowRemix (theme + share) is the owner's 복제 허용; origin credits the share a theme was cloned from.
 //

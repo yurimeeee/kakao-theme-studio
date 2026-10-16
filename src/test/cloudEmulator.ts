@@ -15,6 +15,7 @@ export const EMULATOR_CONFIG: CloudConfig = {
   emulatorHost: '127.0.0.1',
   functionsRegion: 'asia-northeast3',
   kakaoClientId: null,
+  appCheckSiteKey: null,
 }
 
 let seq = 0
