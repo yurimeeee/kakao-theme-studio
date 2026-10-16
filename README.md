@@ -33,9 +33,9 @@ pnpm dev          # http://localhost:5173
 | `pnpm test:cloud` | 에뮬레이터 통합 테스트: 보안 규칙·클라우드 저장·공유·갤러리·함수 |
 | `pnpm e2e:cloud` | 에뮬레이터 + 브라우저 E2E: 로그인·저장·공유·계정 전환·충돌·복제·회원 탈퇴 |
 | `pnpm --dir functions test` | Cloud Functions 단위 테스트 (카카오 교환·다운로드 중복 키) |
-| `pnpm exec playwright test -c e2e-smoke/playwright.config.ts` | **실제 Firebase 프로젝트** 스모크: 가입·저장·공개 공유·비로그인 다운로드·갤러리·다른 기기·삭제. 기본은 `.env.production.local`로 로컬 빌드(:4173), `SMOKE_BASE_URL=https://kakao-theme-studio.vercel.app`이면 배포 사이트 대상 |
+| `pnpm exec playwright test -c e2e-smoke/playwright.config.ts` | **실제 Firebase 프로젝트** 스모크: 가입·저장·공개 공유·비로그인 다운로드·갤러리·다른 기기·삭제·회원 탈퇴. 기본은 `.env.production.local`로 로컬 빌드(:4173), `SMOKE_BASE_URL=https://kakao-theme-studio.vercel.app`이면 배포 사이트 대상 |
 
-> 스모크 테스트는 실제 프로젝트에 테스트 계정(`smoke-…@example.com`)을 만들고 지우지 않습니다. 테마는 마지막에 삭제하며, 계정 정보는 실행 끝에 `SMOKE_ACCOUNT`로 출력됩니다.
+> 스모크 테스트는 실제 프로젝트에 테스트 계정(`smoke-…@example.com`)을 만들고, 마지막에 회원 탈퇴로 계정과 데이터를 지웁니다. 탈퇴 전에 실패하면 남은 계정 정보를 `SMOKE_ACCOUNT`로 출력하니 콘솔에서 지워 주세요(`onUserDeleted`가 데이터도 정리).
 
 로컬 전용으로 쓸 때는 환경 변수가 필요 없습니다. 클라우드 설정은 `.env.example`과 [`docs/cloud.md` §9](docs/cloud.md)를 참고하세요. 클라우드 명령은 최초 1회 `pnpm --dir functions install`이 필요합니다.
 

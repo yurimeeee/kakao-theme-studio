@@ -2,9 +2,13 @@ import { expect, test } from '@playwright/test'
 import { freshApp, newDevice, saveTheme, signIn, signUp, solidPng, uniqueTag, waitSaved } from '../e2e-cloud/helpers'
 
 const account = { name: '스모크', email: `smoke-${uniqueTag()}@example.com`, password: `pw-${uniqueTag()}-${uniqueTag()}` }
-test.afterAll(() => console.log(`SMOKE_ACCOUNT ${account.email} ${account.password}`))
+let accountDeleted = false
+// Printed only when the run stopped before 회원 탈퇴, so the leftover account can be removed by hand.
+test.afterAll(() => {
+  if (!accountDeleted) console.log(`SMOKE_ACCOUNT ${account.email} ${account.password}`)
+})
 
-test('실제 프로젝트: 저장 → 공개 공유 → 비로그인 조회·다운로드·갤러리 → 다른 기기 → 삭제', async ({ page, browser }) => {
+test('실제 프로젝트: 저장 → 공개 공유 → 비로그인 조회·다운로드·갤러리 → 다른 기기 → 삭제 → 회원 탈퇴', async ({ page, browser }) => {
   const errors: string[] = []
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
   await freshApp(page)
@@ -75,5 +79,41 @@ test('실제 프로젝트: 저장 → 공개 공유 → 비로그인 조회·다
   await late.goto(url)
   await expect(late.getByText('이 테마를 볼 수 없어요.')).toBeVisible({ timeout: 30_000 })
   await late.context().close()
+
+  // 회원 탈퇴 with a theme still shared: the function removes it, its link closes, the account is gone.
+  await page.goto('/#/editor/new')
+  const kept = `탈퇴 ${tag}`
+  await saveTheme(page, kept, '링크 공개')
+  await expect(page.getByText('클라우드에 저장했어요.')).toBeVisible({ timeout: 30_000 })
+  await page.getByRole('button', { name: '공유', exact: true }).click()
+  const keptLink = page.getByRole('dialog', { name: '테마 공유' }).getByLabel('공유 링크')
+  await expect(keptLink).toHaveValue(/#\/t\/[A-Za-z0-9]{22}$/, { timeout: 30_000 })
+  const keptUrl = await keptLink.inputValue()
+  const shareDialog = page.getByRole('dialog', { name: '테마 공유' })
+  await shareDialog.getByRole('button', { name: '닫기' }).first().click()
+  await expect(shareDialog).toBeHidden()
+
+  await page.getByRole('banner').getByRole('button', { name: '내 계정' }).click()
+  await page.getByRole('dialog', { name: '내 계정' }).getByRole('button', { name: '회원 탈퇴' }).click()
+  const leave = page.getByRole('dialog', { name: '회원 탈퇴' })
+  await leave.getByRole('checkbox', { name: '안내를 확인했고 탈퇴할게요' }).check()
+  await leave.getByRole('button', { name: '탈퇴하기' }).click()
+  await expect(page.getByText('탈퇴했어요. 그동안 이용해 주셔서 고마워요.')).toBeVisible({ timeout: 60_000 })
+  accountDeleted = true
+  await expect(page.getByRole('banner').getByRole('button', { name: '로그인', exact: true })).toBeVisible()
+  // This device keeps the copy as a signed-out project.
+  await page.goto('/#/projects')
+  await expect(page.getByTestId('project-item').filter({ hasText: kept })).toBeVisible()
+
+  const after = await newDevice(browser)
+  await after.goto(keptUrl)
+  await expect(after.getByText('이 테마를 볼 수 없어요.')).toBeVisible({ timeout: 30_000 })
+  await after.getByRole('banner').getByRole('button', { name: '로그인', exact: true }).click()
+  const login = after.getByRole('dialog', { name: '로그인' })
+  await login.getByLabel('이메일').fill(account.email)
+  await login.getByLabel('비밀번호', { exact: true }).fill(account.password)
+  await login.getByRole('button', { name: '로그인', exact: true }).click()
+  await expect(login.getByText('이메일 또는 비밀번호가 올바르지 않아요.')).toBeVisible({ timeout: 30_000 })
+  await after.context().close()
   expect(errors, 'owner console errors').toEqual([])
 })
