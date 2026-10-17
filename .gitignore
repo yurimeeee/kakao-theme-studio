@@ -41,3 +41,6 @@ dist-emulator
 dist-local
 dist-smoke
 .vercel
+
+# Local-only project brief (spec, plan, design files) — not published
+kakao-theme-studio-development-kit/
