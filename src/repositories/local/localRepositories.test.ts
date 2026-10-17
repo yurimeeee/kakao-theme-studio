@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import Dexie from 'dexie'
 import { importImage } from '@/assets/importImage'
-import { createNewProject } from '@/domain/theme/defaults'
+import { centerFocus, createNewProject } from '@/domain/theme/defaults'
 import type { ThemeProject } from '@/domain/theme/types'
 import { fakePng } from '@/test/fakeRasterizer'
 import { StorageError } from '../types'
@@ -27,7 +27,7 @@ describe('LocalProjectRepository', () => {
     const p = createNewProject()
     const png = fakePng(64, 32)
     const asset = await importImage(p.id, png, repos.assets, decode)
-    p.config.background.main = { mode: 'image', color: '#ffffff', imageAssetId: asset.id }
+    p.config.background.main = { mode: 'image', color: '#ffffff', imageAssetId: asset.id, focus: centerFocus() }
     p.name = '나의 테마'
     await save(p)
 
@@ -77,13 +77,13 @@ describe('LocalProjectRepository', () => {
   it('removes unreferenced assets on save, but keeps assets attached after the snapshot', async () => {
     const p = createNewProject()
     const old = await importImage(p.id, fakePng(1, 1), repos.assets, decode)
-    let saved = await save({ ...p, config: { ...p.config, profile: { mode: 'image', imageAssetId: old.id } } })
+    let saved = await save({ ...p, config: { ...p.config, profile: { mode: 'image', imageAssetId: old.id, focus: centerFocus() } } })
 
     // The user removes the image; meanwhile a new image is attached *after* the snapshot.
     const snapshotAt = Date.now()
     await new Promise((r) => setTimeout(r, 5))
     const fresh = await importImage(p.id, fakePng(2, 2), repos.assets, decode)
-    saved = await repos.projects.save({ ...saved, config: { ...saved.config, profile: { mode: 'default', imageAssetId: null } } }, { snapshotAt })
+    saved = await repos.projects.save({ ...saved, config: { ...saved.config, profile: { mode: 'default', imageAssetId: null, focus: centerFocus() } } }, { snapshotAt })
 
     expect(await repos.assets.get(old.id)).toBeNull()
     expect(await repos.assets.get(fresh.id)).not.toBeNull()
@@ -93,13 +93,13 @@ describe('LocalProjectRepository', () => {
     const p = createNewProject()
     const png = fakePng(3, 3)
     const a = await importImage(p.id, png, repos.assets, decode)
-    const saved = await save({ ...p, config: { ...p.config, profile: { mode: 'image', imageAssetId: a.id } } })
+    const saved = await save({ ...p, config: { ...p.config, profile: { mode: 'image', imageAssetId: a.id, focus: centerFocus() } } })
     // Removed, then the same file chosen again → dedupe refreshes lastAttachedAt.
     const snapshotAt = Date.now()
     await new Promise((r) => setTimeout(r, 5))
     const again = await importImage(p.id, png, repos.assets, decode)
     expect(again.id).toBe(a.id)
-    await repos.projects.save({ ...saved, config: { ...saved.config, profile: { mode: 'default', imageAssetId: null } } }, { snapshotAt })
+    await repos.projects.save({ ...saved, config: { ...saved.config, profile: { mode: 'default', imageAssetId: null, focus: centerFocus() } } }, { snapshotAt })
     expect(await repos.assets.get(a.id)).not.toBeNull()
   })
 
@@ -108,8 +108,8 @@ describe('LocalProjectRepository', () => {
     const b = createNewProject()
     const assetA = await importImage(a.id, fakePng(4, 4), repos.assets, decode)
     const assetB = await importImage(b.id, fakePng(5, 5), repos.assets, decode)
-    await repos.projects.save({ ...a, config: { ...a.config, profile: { mode: 'image', imageAssetId: assetA.id } } }, { snapshotAt: Date.now(), thumbnail: fakePng(1, 1) })
-    await save({ ...b, config: { ...b.config, profile: { mode: 'image', imageAssetId: assetB.id } } })
+    await repos.projects.save({ ...a, config: { ...a.config, profile: { mode: 'image', imageAssetId: assetA.id, focus: centerFocus() } } }, { snapshotAt: Date.now(), thumbnail: fakePng(1, 1) })
+    await save({ ...b, config: { ...b.config, profile: { mode: 'image', imageAssetId: assetB.id, focus: centerFocus() } } })
     await repos.settings.setLastProjectId(a.id)
 
     await repos.projects.delete(a.id)
@@ -194,7 +194,7 @@ describe('cloud-linked local copies', () => {
   it('replaceFromCloud swaps the row and all assets atomically and is found by cloud id', async () => {
     const p = createNewProject()
     await repos.assets.put(record(p.id, 'ast_old', [1]))
-    await save({ ...p, config: { ...p.config, profile: { mode: 'image', imageAssetId: 'ast_old' } } })
+    await save({ ...p, config: { ...p.config, profile: { mode: 'image', imageAssetId: 'ast_old', focus: centerFocus() } } })
 
     const fromCloud: ThemeProject = {
       ...p,
@@ -202,7 +202,7 @@ describe('cloud-linked local copies', () => {
       cloudThemeId: 'theme1',
       cloudOwnerId: 'uid-a',
       cloudRevisionId: 'r2',
-      config: { ...p.config, profile: { mode: 'image', imageAssetId: 'ast_new' } },
+      config: { ...p.config, profile: { mode: 'image', imageAssetId: 'ast_new', focus: centerFocus() } },
     }
     const saved = await repos.projects.replaceFromCloud(fromCloud, [record(p.id, 'ast_new', [2])], null)
     expect(saved.revision).toBe(2)
@@ -227,7 +227,7 @@ describe('cloud-linked local copies', () => {
     for (const p of [mine, theirs, local]) {
       const id = `ast_${p.id.slice(3)}`
       await repos.assets.put(record(p.id, id, [3]))
-      await save({ ...p, config: { ...p.config, profile: { mode: 'image', imageAssetId: id } } })
+      await save({ ...p, config: { ...p.config, profile: { mode: 'image', imageAssetId: id, focus: centerFocus() } } })
     }
     expect(await repos.projects.deleteByCloudOwner('uid-a')).toBe(1)
     const left = (await repos.projects.list()).map((p) => p.id).sort()
@@ -240,7 +240,7 @@ describe('cloud-linked local copies', () => {
     const mine = { ...createNewProject(), cloudThemeId: 't1', cloudOwnerId: 'uid-a', cloudRevisionId: 'r1' }
     const theirs = { ...createNewProject(), cloudThemeId: 't2', cloudOwnerId: 'uid-b', cloudRevisionId: 'r1' }
     await repos.assets.put(record(mine.id, 'ast_m', [3]))
-    const saved = await save({ ...mine, config: { ...mine.config, profile: { mode: 'image', imageAssetId: 'ast_m' } } })
+    const saved = await save({ ...mine, config: { ...mine.config, profile: { mode: 'image', imageAssetId: 'ast_m', focus: centerFocus() } } })
     await save(theirs)
     expect(await repos.projects.unlinkCloudOwner('uid-a')).toBe(1)
     const after = await repos.projects.get(mine.id)

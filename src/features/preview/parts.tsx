@@ -5,6 +5,7 @@ import { mix } from '@/domain/theme/color'
 import type { ResolvedBubble, ResolvedTheme } from '@/domain/theme/resolve'
 import type { ElementKey, HexColor, TabKey } from '@/domain/theme/types'
 import { effectiveRadius, imageBubbleGeometry, pxPerPt } from '@/exporters/ktheme/bubbleGeometry'
+import { focusedImageStyle } from './focus'
 
 export function StatusBar({ color }: { color: HexColor }) {
   return (
@@ -31,12 +32,12 @@ export function Avatar({ theme, photo, size = 40 }: { theme: ResolvedTheme; phot
   const fg = mix(theme.palette.background, theme.palette.text, 0.35)
   return (
     <span
-      className="flex shrink-0 items-center justify-center overflow-hidden"
+      className="relative flex shrink-0 items-center justify-center overflow-hidden"
       style={{ width: size, height: size, borderRadius: radius, background: bg }}
       data-testid="default-profile"
       data-element="profile"
     >
-      {url ? <img src={url} alt="" className="size-full object-cover" /> : <UserRound style={{ color: fg, width: size * 0.55, height: size * 0.55 }} fill={fg} strokeWidth={0} />}
+      {url ? <img src={url} alt="" style={focusedImageStyle(theme.profileFocus)} /> : <UserRound style={{ color: fg, width: size * 0.55, height: size * 0.55 }} fill={fg} strokeWidth={0} />}
     </span>
   )
 }

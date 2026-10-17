@@ -213,3 +213,44 @@ test('보내는 말풍선의 모양을 받는 말풍선에도 적용한다', asy
   await expect(panel.getByRole('radio', { name: '기본' })).toHaveAttribute('aria-checked', 'true')
   await expect(panel.getByRole('button', { name: '보내는 말풍선에도 적용' })).toBeDisabled()
 })
+
+test('배경·프로필 이미지의 보일 부분을 고르고 새로고침 후에도 유지된다', async ({ page }) => {
+  await freshApp(page)
+  const panel = page.getByRole('complementary', { name: /속성/ })
+  await page.getByRole('button', { name: '기본 프로필' }).click()
+  await panel.getByRole('radio', { name: '이미지' }).click()
+  await panel.getByLabel('기본 프로필 이미지 파일 선택').setInputFiles({ name: 'wide.png', mimeType: 'image/png', buffer: solidPng(300, 100, [10, 120, 200, 255]) })
+  const frame = panel.getByTestId('focus-frame')
+  await expect(frame).toBeVisible()
+  const center = panel.getByRole('button', { name: '가운데로' })
+  await expect(center).toBeDisabled()
+
+  // Wide image in a square frame: only the horizontal position can move.
+  await frame.focus()
+  await page.keyboard.press('ArrowLeft')
+  await page.keyboard.press('ArrowLeft')
+  await expect(center).toBeEnabled()
+  const previewImg = page.getByTestId('theme-preview').getByTestId('default-profile').first().locator('img')
+  await expect(previewImg).toHaveCSS('object-position', /^40% 50%/)
+
+  // Dragging right shows more of the left side.
+  const box = (await frame.boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width / 2 + 200, box.y + box.height / 2, { steps: 5 })
+  await page.mouse.up()
+  await expect(previewImg).toHaveCSS('object-position', /^0% 50%/)
+  await waitSaved(page)
+
+  await page.reload()
+  await page.getByRole('radio', { name: '친구' }).click()
+  await expect(page.getByTestId('theme-preview').getByTestId('default-profile').first().locator('img')).toHaveCSS('object-position', /^0% 50%/)
+
+  await page.getByRole('button', { name: '배경', exact: true }).click()
+  await panel.getByRole('radio', { name: '이미지' }).first().click()
+  await panel.getByLabel('목록 배경 이미지 파일 선택').setInputFiles({ name: 'bg.png', mimeType: 'image/png', buffer: solidPng(100, 100, [200, 40, 40, 255]) })
+  await expect(panel.getByTestId('focus-frame')).toBeVisible()
+  await panel.getByRole('slider', { name: '확대' }).focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(page.getByTestId('theme-preview').locator('> div').first()).toHaveCSS('background-size', /105%/)
+})

@@ -1,4 +1,4 @@
-import type { HexColor } from '@/domain/theme/types'
+import type { HexColor, ImageFocus } from '@/domain/theme/types'
 import type { Ctx, Decoded } from './raster'
 
 export function fillSolid(ctx: Ctx, w: number, h: number, color: HexColor): void {
@@ -37,12 +37,13 @@ export function darkenDrawn(ctx: Ctx, w: number, h: number, amount: number): voi
   ctx.restore()
 }
 
-export function drawCover(ctx: Ctx, img: Decoded, w: number, h: number): void {
-  const scale = Math.max(w / img.width, h / img.height)
+/** Cover the frame, keeping the `focus` part visible (same math as CSS background-position %). */
+export function drawCover(ctx: Ctx, img: Decoded, w: number, h: number, focus: ImageFocus = { x: 0.5, y: 0.5, zoom: 1 }): void {
+  const scale = Math.max(w / img.width, h / img.height) * focus.zoom
   const dw = img.width * scale
   const dh = img.height * scale
   ctx.imageSmoothingQuality = 'high'
-  ctx.drawImage(img.source, (w - dw) / 2, (h - dh) / 2, dw, dh)
+  ctx.drawImage(img.source, (w - dw) * focus.x, (h - dh) * focus.y, dw, dh)
 }
 
 export function drawContain(ctx: Ctx, img: Decoded, w: number, h: number): void {
@@ -91,13 +92,14 @@ export function drawThemeIcon(
   colors: { background: HexColor; receive: HexColor; send: HexColor },
   backgroundImage?: Decoded | null,
   customIcon?: Decoded | null,
+  backgroundFocus?: ImageFocus,
 ): void {
   fillSolid(ctx, size, size, colors.background)
   if (customIcon) {
     drawCover(ctx, customIcon, size, size)
     return
   }
-  if (backgroundImage) drawCover(ctx, backgroundImage, size, size)
+  if (backgroundImage) drawCover(ctx, backgroundImage, size, size, backgroundFocus)
   const pillH = size * 0.17
   ctx.fillStyle = colors.receive
   roundedRectPath(ctx, size * 0.16, size * 0.3, size * 0.46, pillH, pillH / 2)

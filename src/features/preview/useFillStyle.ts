@@ -1,13 +1,15 @@
 import type { CSSProperties } from 'react'
-import { useAssetUrl } from '@/assets/useAssetUrl'
+import { useAssetSize, useAssetUrl } from '@/assets/useAssetUrl'
 import type { ResolvedFill } from '@/domain/theme/resolve'
+import { focusedBackground } from './focus'
 
-export function useFillStyle(fill: ResolvedFill): CSSProperties {
+/** `frame`: size of the element being filled, for zoomed crops. */
+export function useFillStyle(fill: ResolvedFill, frame: { w: number; h: number }): CSSProperties {
   const url = useAssetUrl(fill.imageAssetId)
+  const size = useAssetSize(fill.imageAssetId)
   return {
     backgroundColor: fill.color,
     backgroundImage: url ? `url("${url}")` : undefined,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center top',
+    ...focusedBackground(fill.focus, size, frame),
   }
 }

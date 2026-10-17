@@ -3,6 +3,7 @@ import {
   CURRENT_SCHEMA_VERSION,
   type BubbleSetting,
   type ElementKey,
+  type ImageFocus,
   type ThemeConfig,
   type ThemeProject,
 } from './types'
@@ -18,6 +19,9 @@ export const BUBBLE_RADIUS_MAX = 20
 export const BUBBLE_IMAGE_SIZE_DEFAULT = 100
 export const BUBBLE_IMAGE_SIZE_MIN = 20
 export const BUBBLE_IMAGE_SIZE_MAX = 300
+
+export const FOCUS_ZOOM_MAX = 3
+export const centerFocus = (): ImageFocus => ({ x: 0.5, y: 0.5, zoom: 1 })
 
 function bubble(color: string): BubbleSetting {
   return {
@@ -47,8 +51,8 @@ export function createDefaultConfig(): ThemeConfig {
       accent: '#d9d9df',
     },
     background: {
-      main: { mode: 'default', color: '#ffffff', imageAssetId: null },
-      chatroom: { mode: 'default', color: '#ececef', imageAssetId: null },
+      main: { mode: 'default', color: '#ffffff', imageAssetId: null, focus: centerFocus() },
+      chatroom: { mode: 'default', color: '#ececef', imageAssetId: null, focus: centerFocus() },
     },
     bubbles: {
       send: bubble('#d9d9df'),
@@ -62,7 +66,7 @@ export function createDefaultConfig(): ThemeConfig {
       sendIcon: '#222224',
       buttonColor: '#8a8a92',
     },
-    profile: { mode: 'default', imageAssetId: null },
+    profile: { mode: 'default', imageAssetId: null, focus: centerFocus() },
     themeIcon: { mode: 'default', imageAssetId: null },
     tabs: {
       mode: 'default',
@@ -76,7 +80,7 @@ export function createDefaultConfig(): ThemeConfig {
       },
     },
     passcode: {
-      background: { mode: 'default', color: '#ffffff', imageAssetId: null },
+      background: { mode: 'default', color: '#ffffff', imageAssetId: null, focus: centerFocus() },
       titleColor: null,
       keypadTextColor: null,
       keypadBackground: null,

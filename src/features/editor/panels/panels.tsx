@@ -12,6 +12,8 @@ import { isElementDefault, resetElement } from '@/domain/theme/defaults'
 import { resolveThemeCached, type ResolvedFill } from '@/domain/theme/resolve'
 import { TAB_KEYS, type ElementKey, type HexColor, type TabKey } from '@/domain/theme/types'
 import { renderThumbnail, thumbnailKey } from '../../projects/thumbnail'
+import { RESOURCES } from '@/exporters/ktheme/catalog'
+import { FocusEditor } from '../FocusEditor'
 import { ImageField } from '../ImageField'
 import { useEditor } from '../store'
 import { BubblePanel } from './BubblePanel'
@@ -21,7 +23,7 @@ import { FillEditor } from './shared'
 const useConfig = () => useEditor((s) => s.project!.config)
 
 /** Contrast check against plain-color fills (photos are skipped); the least readable one is used. */
-function against(color: HexColor, min: number, ...fills: ResolvedFill[]) {
+function against(color: HexColor, min: number, ...fills: Pick<ResolvedFill, 'color' | 'imageAssetId'>[]) {
   const plain = fills.filter((f) => !f.imageAssetId).map((f) => f.color)
   if (!plain.length) return undefined
   return { against: plain.reduce((worst, c) => (contrastRatio(color, c) < contrastRatio(color, worst) ? c : worst)), min }
@@ -69,7 +71,8 @@ function BackgroundPanel() {
           fill={config.background.main}
           defaultColor={config.palette.background}
           onChange={(next) => update((c) => void (c.background.main = next))}
-          imageHint="화면에 맞게 가운데를 기준으로 잘라서 채워요."
+          imageHint="화면을 꽉 채우도록 잘라서 써요."
+          frame={RESOURCES.mainBackground.sizePt}
         />
       </FieldGroup>
       <FieldGroup title="대화방 배경" description="대화 화면에만 적용돼요.">
@@ -78,7 +81,8 @@ function BackgroundPanel() {
           fill={config.background.chatroom}
           defaultColor={theme.chatroom.background.color}
           onChange={(next) => update((c) => void (c.background.chatroom = next))}
-          imageHint="화면에 맞게 가운데를 기준으로 잘라서 채워요."
+          imageHint="화면을 꽉 채우도록 잘라서 써요."
+          frame={RESOURCES.chatroomBackground.sizePt}
         />
       </FieldGroup>
     </div>
@@ -153,12 +157,24 @@ function ProfilePanel() {
         {profile.mode === 'default' ? (
           <p className="text-[13px] text-sub">전체 색상에 맞춘 기본 프로필 이미지를 만들어요.</p>
         ) : (
-          <ImageField
-            label="기본 프로필 이미지"
-            assetId={profile.imageAssetId}
-            onChange={(id) => update((c) => void (c.profile.imageAssetId = id))}
-            hint="정사각형으로 가운데를 잘라 사용해요. 300×300px 이상을 권장해요."
-          />
+          <>
+            <ImageField
+              label="기본 프로필 이미지"
+              assetId={profile.imageAssetId}
+              onChange={(id) => update((c) => void (c.profile.imageAssetId = id))}
+              hint="정사각형으로 잘라 사용해요. 300×300px 이상을 권장해요."
+            />
+            {profile.imageAssetId && (
+              <FocusEditor
+                label="기본 프로필 위치"
+                assetId={profile.imageAssetId}
+                focus={profile.focus}
+                aspect={1}
+                round
+                onChange={(focus) => update((c) => void (c.profile.focus = focus))}
+              />
+            )}
+          </>
         )}
       </FieldGroup>
       <Notice>프로필 사진이 없는 친구에게 표시돼요. 사진이 있는 친구의 프로필은 유지돼요.</Notice>
@@ -290,6 +306,7 @@ function PasscodePanel() {
           fill={pc.background}
           defaultColor={config.palette.background}
           onChange={(next) => update((c) => void (c.passcode.background = next))}
+          frame={RESOURCES.passcodeBackground.sizePt}
         />
       </FieldGroup>
       <FieldGroup title="글자 · 키패드">

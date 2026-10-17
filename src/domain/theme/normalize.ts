@@ -1,5 +1,5 @@
 import { isHexColor, normalizeHex } from './color'
-import { BUBBLE_IMAGE_SIZE_MAX, BUBBLE_IMAGE_SIZE_MIN, BUBBLE_RADIUS_MAX, BUBBLE_RADIUS_MIN, createDefaultConfig, THEME_NAME_MAX_LENGTH } from './defaults'
+import { BUBBLE_IMAGE_SIZE_MAX, BUBBLE_IMAGE_SIZE_MIN, BUBBLE_RADIUS_MAX, BUBBLE_RADIUS_MIN, createDefaultConfig, FOCUS_ZOOM_MAX, THEME_NAME_MAX_LENGTH } from './defaults'
 import { isAssetId } from './ids'
 import {
   CURRENT_SCHEMA_VERSION,
@@ -10,6 +10,7 @@ import {
   type EdgeInsets,
   type FillSetting,
   type HexColor,
+  type ImageFocus,
   type ThemeConfig,
   type ThemeOrigin,
 } from './types'
@@ -52,12 +53,19 @@ function oneOf<T extends string>(v: unknown, allowed: readonly T[], fallback: T)
   return allowed.includes(v as T) ? (v as T) : fallback
 }
 
+/** Configs saved before image focus existed crop at the center. */
+function focus(v: unknown): ImageFocus {
+  const o = obj(v)
+  return { x: num(o.x, 0.5, 0, 1), y: num(o.y, 0.5, 0, 1), zoom: num(o.zoom, 1, 1, FOCUS_ZOOM_MAX) }
+}
+
 function fill(v: unknown, d: FillSetting): FillSetting {
   const o = obj(v)
   return {
     mode: oneOf(o.mode, ['default', 'color', 'image'] as const, d.mode),
     color: color(o.color, d.color),
     imageAssetId: asset(o.imageAssetId),
+    focus: focus(o.focus),
   }
 }
 
@@ -169,6 +177,7 @@ export function normalizeConfig(raw: unknown): ThemeConfig {
     profile: {
       mode: oneOf(pr.mode, ['default', 'image'] as const, d.profile.mode),
       imageAssetId: asset(pr.imageAssetId),
+      focus: focus(pr.focus),
     },
     themeIcon: {
       mode: oneOf(ti.mode, ['default', 'image'] as const, d.themeIcon.mode),

@@ -8,6 +8,8 @@ import { ChatListScreen, ChatRoomScreen, FriendsScreen, PasscodeScreen } from '.
 
 const PHONE_W = 300
 const PHONE_H = 630
+/** Screen area inside the 6px phone border. */
+const SCREEN = { w: PHONE_W - 12, h: PHONE_H - 12 }
 
 /**
  * KakaoTalk-like preview rendered from the same ResolvedTheme as the exporter.
@@ -35,7 +37,7 @@ export function ThemePreview({ config, screen, onSelectElement }: { config: Them
 
   const statusColor = screen === 'passcode' ? theme.passcode.title : theme.header.text
   const fill = screen === 'chatroom' ? theme.chatroom.background : screen === 'passcode' ? theme.passcode.background : theme.main.background
-  const fillStyle = useFillStyle(fill)
+  const fillStyle = useFillStyle(fill, SCREEN)
   const onClick = (e: MouseEvent) => {
     const target = e.target as Element
     // Keypad keys simulate input instead.

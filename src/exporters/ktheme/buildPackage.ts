@@ -1,6 +1,6 @@
 import { mix } from '@/domain/theme/color'
-import { resolveTheme, type ResolvedBubble } from '@/domain/theme/resolve'
-import { TAB_KEYS, type AssetId, type HexColor, type ThemeConfig } from '@/domain/theme/types'
+import { resolveTheme, type ResolvedBubble, type ResolvedFill } from '@/domain/theme/resolve'
+import { TAB_KEYS, type AssetId, type ThemeConfig } from '@/domain/theme/types'
 import { generatedBubbleGeometry, imageBubbleGeometry } from './bubbleGeometry'
 import {
   CSS_FILE_NAME,
@@ -108,20 +108,20 @@ export async function buildThemePackage(snapshot: ExportSnapshot, raster: Raster
     }
   }
 
-  const fillBackground = async (base: string, sizePt: { w: number; h: number }, color: HexColor, imageId: AssetId | null) => {
-    const image = imageId ? await decode(imageId) : null
+  const fillBackground = async (base: string, sizePt: { w: number; h: number }, fill: ResolvedFill) => {
+    const image = fill.imageAssetId ? await decode(fill.imageAssetId) : null
     await emit(base, sizePt, (ctx, w, h) => {
-      fillSolid(ctx, w, h, color)
-      if (image) drawCover(ctx, image, w, h)
+      fillSolid(ctx, w, h, fill.color)
+      if (image) drawCover(ctx, image, w, h, fill.focus)
     })
   }
 
   try {
     // Backgrounds are always emitted (solid color when no image) so the theme does
     // not depend on whether the app honours background-color alone.
-    await fillBackground(RESOURCES.mainBackground.base, RESOURCES.mainBackground.sizePt, theme.main.background.color, theme.main.background.imageAssetId)
-    await fillBackground(RESOURCES.chatroomBackground.base, RESOURCES.chatroomBackground.sizePt, theme.chatroom.background.color, theme.chatroom.background.imageAssetId)
-    await fillBackground(RESOURCES.passcodeBackground.base, RESOURCES.passcodeBackground.sizePt, theme.passcode.background.color, theme.passcode.background.imageAssetId)
+    await fillBackground(RESOURCES.mainBackground.base, RESOURCES.mainBackground.sizePt, theme.main.background)
+    await fillBackground(RESOURCES.chatroomBackground.base, RESOURCES.chatroomBackground.sizePt, theme.chatroom.background)
+    await fillBackground(RESOURCES.passcodeBackground.base, RESOURCES.passcodeBackground.sizePt, theme.passcode.background)
 
     let tabBarImage: string | null = null
     if (theme.tabs.barColor) {
@@ -141,7 +141,7 @@ export async function buildThemePackage(snapshot: ExportSnapshot, raster: Raster
     await emit(RESOURCES.profile.base, RESOURCES.profile.sizePt, (ctx, w, h) => {
       if (profileImage) {
         fillSolid(ctx, w, h, profileBg)
-        drawCover(ctx, profileImage, w, h)
+        drawCover(ctx, profileImage, w, h, theme.profileFocus)
       } else drawDefaultProfile(ctx, w, profileBg, profileFg)
     })
 
@@ -192,7 +192,7 @@ export async function buildThemePackage(snapshot: ExportSnapshot, raster: Raster
       background: theme.chatroom.background.color,
       receive: theme.bubbles.receive.color,
       send: theme.bubbles.send.color,
-    }, iconBg, customIcon)
+    }, iconBg, customIcon, theme.chatroom.background.focus)
     await encode(`${IMAGES_DIR}/${THEME_ICON_FILE}`, icon)
 
     const model: ThemeCssModel = {

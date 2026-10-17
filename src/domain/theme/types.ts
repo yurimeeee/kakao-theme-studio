@@ -22,10 +22,21 @@ export type AssetId = string
  */
 export type FillMode = 'default' | 'color' | 'image'
 
+/**
+ * How an image is cropped to fill a fixed frame (cover). `x`/`y` 0–1 pick the visible part
+ * (CSS background-position semantics: 0 = left/top edge, 0.5 = center); `zoom` ≥ 1 enlarges past cover.
+ */
+export interface ImageFocus {
+  x: number
+  y: number
+  zoom: number
+}
+
 export interface FillSetting {
   mode: FillMode
   color: HexColor
   imageAssetId: AssetId | null
+  focus: ImageFocus
 }
 
 export type BubbleShape = 'square' | 'rounded' | 'capsule'
@@ -91,6 +102,7 @@ export interface HeaderInputSetting {
 export interface ProfileSetting {
   mode: 'default' | 'image'
   imageAssetId: AssetId | null
+  focus: ImageFocus
 }
 
 /** Theme list icon (commonIcoTheme.png) and project thumbnail. `default` draws it from the theme colors. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createDefaultConfig, createNewProject, isElementDefault, resetElement } from './defaults'
+import { centerFocus, createDefaultConfig, createNewProject, isElementDefault, resetElement } from './defaults'
 import { collectAssetIds, mapAssetRefs, migrateConfig, normalizeConfig, normalizeOrigin, UnsupportedSchemaError } from './normalize'
 import { activeAssetIds, resolveTheme } from './resolve'
 
@@ -38,7 +38,7 @@ describe('normalizeConfig / migrateConfig', () => {
 describe('asset references', () => {
   it('keeps inactive images referenced so mode switches never destroy originals', () => {
     const c = createDefaultConfig()
-    c.background.main = { mode: 'color', color: '#ff0000', imageAssetId: 'ast_keepme' }
+    c.background.main = { mode: 'color', color: '#ff0000', imageAssetId: 'ast_keepme', focus: centerFocus() }
     expect(collectAssetIds(c).has('ast_keepme')).toBe(true)
     // …but the exporter/preview do not use it while in color mode.
     expect(activeAssetIds(resolveTheme(c)).has('ast_keepme')).toBe(false)
@@ -172,5 +172,22 @@ describe('resetElement', () => {
     const { accent, text, subText, background } = config.palette
     config.palette = { accent, text, subText, background }
     expect(isElementDefault(config, 'palette')).toBe(true)
+  })
+})
+
+describe('image focus', () => {
+  it('older configs without focus crop at the center; bad values are clamped', () => {
+    const c = normalizeConfig({ background: { main: { mode: 'image', imageAssetId: 'ast_a' } }, profile: { focus: { x: 2, y: -1, zoom: 9 } } })
+    expect(c.background.main.focus).toEqual({ x: 0.5, y: 0.5, zoom: 1 })
+    expect(c.profile.focus).toEqual({ x: 1, y: 0, zoom: 3 })
+  })
+
+  it('resolveTheme carries the focus to the preview and the exporter', () => {
+    const c = createDefaultConfig()
+    c.background.chatroom = { mode: 'image', color: '#ffffff', imageAssetId: 'ast_a', focus: { x: 0.2, y: 0.8, zoom: 1.5 } }
+    c.profile.focus = { x: 0, y: 1, zoom: 2 }
+    const t = resolveTheme(c)
+    expect(t.chatroom.background.focus).toEqual({ x: 0.2, y: 0.8, zoom: 1.5 })
+    expect(t.profileFocus).toEqual({ x: 0, y: 1, zoom: 2 })
   })
 })

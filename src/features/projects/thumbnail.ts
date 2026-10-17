@@ -20,6 +20,7 @@ export function thumbnailKey(config: ThemeConfig): string {
     theme.bubbles.receive.color,
     theme.bubbles.send.color,
     theme.themeIconAssetId,
+    JSON.stringify(theme.chatroom.background.focus),
   ].join('|')
 }
 
@@ -34,7 +35,7 @@ export async function renderThumbnail(config: ThemeConfig, assets: ReadonlyMap<A
   const bg = !icon && bgId && assets.get(bgId) ? await decodeCovering(raster, assets.get(bgId)!) : null
   try {
     const surface = raster.surface(SIZE, SIZE)
-    drawThemeIcon(surface.ctx, SIZE, { background: theme.chatroom.background.color, receive: theme.bubbles.receive.color, send: theme.bubbles.send.color }, bg, icon)
+    drawThemeIcon(surface.ctx, SIZE, { background: theme.chatroom.background.color, receive: theme.bubbles.receive.color, send: theme.bubbles.send.color }, bg, icon, theme.chatroom.background.focus)
     return await surface.toPng()
   } finally {
     icon?.close()

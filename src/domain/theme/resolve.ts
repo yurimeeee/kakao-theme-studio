@@ -6,6 +6,7 @@ import {
   type BubbleSetting,
   type FillSetting,
   type HexColor,
+  type ImageFocus,
   type TabKey,
   type ThemeConfig,
 } from './types'
@@ -23,6 +24,7 @@ export interface ResolvedFill {
   color: HexColor
   /** Present only when the element is in image mode and an image is attached. */
   imageAssetId: AssetId | null
+  focus: ImageFocus
 }
 
 export interface ResolvedBubble extends BubbleImageLayout {
@@ -65,6 +67,7 @@ export interface ResolvedTheme {
   bubbles: { send: ResolvedBubble; receive: ResolvedBubble }
   /** null → use the generated built-in default profile resource. */
   profileImageAssetId: AssetId | null
+  profileFocus: ImageFocus
   /** null → draw the theme icon from the chat room background and bubble colors. */
   themeIconAssetId: AssetId | null
   tabs: {
@@ -87,9 +90,10 @@ export interface ResolvedTheme {
 }
 
 function resolveFill(fill: FillSetting, fallbackColor: HexColor): ResolvedFill {
-  if (fill.mode === 'image' && fill.imageAssetId) return { color: fallbackColor, imageAssetId: fill.imageAssetId }
-  if (fill.mode === 'color') return { color: fill.color, imageAssetId: null }
-  return { color: fallbackColor, imageAssetId: null }
+  const focus = { ...fill.focus }
+  if (fill.mode === 'image' && fill.imageAssetId) return { color: fallbackColor, imageAssetId: fill.imageAssetId, focus }
+  if (fill.mode === 'color') return { color: fill.color, imageAssetId: null, focus }
+  return { color: fallbackColor, imageAssetId: null, focus }
 }
 
 const copyLayout = (l: BubbleImageLayout): BubbleImageLayout => ({
@@ -191,6 +195,7 @@ export function resolveTheme(config: ThemeConfig): ResolvedTheme {
       receive: resolveBubble(config.bubbles.receive, palette.background, palette.text),
     },
     profileImageAssetId: config.profile.mode === 'image' ? config.profile.imageAssetId : null,
+    profileFocus: { ...config.profile.focus },
     themeIconAssetId: config.themeIcon.mode === 'image' ? config.themeIcon.imageAssetId : null,
     tabs: {
       barColor: config.tabs.barColor,

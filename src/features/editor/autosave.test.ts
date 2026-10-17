@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getRepositories } from '@/app/services'
-import { createNewProject } from '@/domain/theme/defaults'
+import { centerFocus, createNewProject } from '@/domain/theme/defaults'
 import type { ThemeProject } from '@/domain/theme/types'
 import { StorageError } from '@/repositories/types'
 import { useSession } from '../auth/session'
@@ -199,7 +199,7 @@ describe('editor open', () => {
 
   it('drops references to missing images and schedules a save of the repaired config', async () => {
     const p = await persistedProject()
-    p.config.background.main = { mode: 'image', color: '#ffffff', imageAssetId: 'ast_missing' }
+    p.config.background.main = { mode: 'image', color: '#ffffff', imageAssetId: 'ast_missing', focus: centerFocus() }
     const saved = await getRepositories().projects.save(p, { snapshotAt: Date.now() })
     await editor().open({ kind: 'project', id: saved.id })
     expect(editor().project!.config.background.main.imageAssetId).toBeNull()
@@ -282,7 +282,7 @@ describe('undo / redo', () => {
     }
     const { assets, projects } = getRepositories()
     await assets.put(record)
-    p.config.background.main = { mode: 'image', color: '#ffffff', imageAssetId: record.id }
+    p.config.background.main = { mode: 'image', color: '#ffffff', imageAssetId: record.id, focus: centerFocus() }
     const saved = await projects.save(p, { snapshotAt: now })
     await editor().open({ kind: 'project', id: saved.id })
 

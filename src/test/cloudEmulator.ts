@@ -2,7 +2,7 @@ import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth'
 import type { AssetRecord } from '@/assets/types'
 import type { CloudConfig } from '@/cloud/config'
 import { createCloudServices, type CloudServices } from '@/cloud/firebase'
-import { createNewProject } from '@/domain/theme/defaults'
+import { centerFocus, createNewProject } from '@/domain/theme/defaults'
 import type { AssetId, ThemeProject } from '@/domain/theme/types'
 
 export const EMULATOR_CONFIG: CloudConfig = {
@@ -57,8 +57,8 @@ export function projectWithImages(name = '구름 테마'): { project: ThemeProje
   project.name = name
   const bg = fakeAsset('ast_bg1', `bg-${unique()}`, project.id)
   const profile = fakeAsset('ast_pf1', `pf-${unique()}`, project.id)
-  project.config.background.chatroom = { mode: 'image', color: '#ececef', imageAssetId: bg.id }
-  project.config.profile = { mode: 'default', imageAssetId: profile.id }
+  project.config.background.chatroom = { mode: 'image', color: '#ececef', imageAssetId: bg.id, focus: centerFocus() }
+  project.config.profile = { mode: 'default', imageAssetId: profile.id, focus: centerFocus() }
   return { project, assets: new Map([[bg.id, bg], [profile.id, profile]]) }
 }
 

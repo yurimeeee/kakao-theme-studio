@@ -1,12 +1,13 @@
 import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
 import { contrastRatio, mix } from '@/domain/theme/color'
-import { createDefaultConfig } from '@/domain/theme/defaults'
+import { centerFocus, createDefaultConfig } from '@/domain/theme/defaults'
 import type { HexColor, ThemeConfig } from '@/domain/theme/types'
 import { FakeRasterizer, fakePng } from '@/test/fakeRasterizer'
 import { fitBubbleImage, flatLines, generatedBubbleGeometry, imageBubbleGeometry, isFlatSlot, rescaleLayout, type Pixels } from './bubbleGeometry'
 import { buildThemePackage, ExportError, type ExportSnapshot } from './buildPackage'
 import { cssString, parseThemeCss, referencedImages } from './css'
+import { drawCover } from './draw'
 import { createKthemeArchive, toKthemeFileName } from './exportTheme'
 import { validatePackage } from './validate'
 
@@ -69,7 +70,7 @@ describe('createKthemeArchive', () => {
 
   it('maps uploaded images, tab icons and image bubbles with correct sizes and stretch', async () => {
     const config = createDefaultConfig()
-    config.background.chatroom = { mode: 'image', color: '#000000', imageAssetId: 'ast_bg' }
+    config.background.chatroom = { mode: 'image', color: '#000000', imageAssetId: 'ast_bg', focus: centerFocus() }
     config.bubbles.send = { ...config.bubbles.send, mode: 'image', imageAssetId: 'ast_bub', advanced: { ...config.bubbles.send.advanced, stretch: { x: 20, y: 15 } } }
     config.tabs.mode = 'image'
     config.tabs.icons.friends = { normal: 'ast_tab', selected: null }
@@ -163,7 +164,7 @@ describe('createKthemeArchive', () => {
     const decode = raster.decode.bind(raster)
     raster.decode = (blob) => (decoded.push(blob), decode(blob))
     const config = createDefaultConfig()
-    config.background.chatroom = { mode: 'image', color: '#000000', imageAssetId: 'ast_bg' }
+    config.background.chatroom = { mode: 'image', color: '#000000', imageAssetId: 'ast_bg', focus: centerFocus() }
     config.themeIcon = { mode: 'image', imageAssetId: 'ast_icon' }
     const archive = await createKthemeArchive(snapshot(config, [['ast_icon', icon], ['ast_bg', bg]]), raster)
     const zip = await unzip(archive.blob)
@@ -180,7 +181,7 @@ describe('createKthemeArchive', () => {
 
   it('fails with missing-asset instead of exporting a broken reference', async () => {
     const config = createDefaultConfig()
-    config.profile = { mode: 'image', imageAssetId: 'ast_gone' }
+    config.profile = { mode: 'image', imageAssetId: 'ast_gone', focus: centerFocus() }
     await expect(createKthemeArchive(snapshot(config), new FakeRasterizer())).rejects.toMatchObject({ code: 'missing-asset' })
   })
 
@@ -189,7 +190,7 @@ describe('createKthemeArchive', () => {
     const raster = new FakeRasterizer()
     raster.failDecode.add(bad)
     const config = createDefaultConfig()
-    config.background.main = { mode: 'image', color: '#ffffff', imageAssetId: 'ast_bad' }
+    config.background.main = { mode: 'image', color: '#ffffff', imageAssetId: 'ast_bad', focus: centerFocus() }
     await expect(createKthemeArchive(snapshot(config, [['ast_bad', bad]]), raster)).rejects.toBeInstanceOf(ExportError)
   })
 })
@@ -342,5 +343,25 @@ describe('fitBubbleImage', () => {
     const data = new Uint8ClampedArray(w * h * 4)
     for (let i = 0; i < w * h; i++) data.set([(i * 37) % 256, (i * 11) % 256, i % 256, 255], i * 4)
     expect(fitBubbleImage({ width: w, height: h, data })).toBeNull()
+  })
+})
+
+describe('drawCover', () => {
+  const draw = (focus?: { x: number; y: number; zoom: number }) => {
+    const calls: number[][] = []
+    const ctx = { drawImage: (_s: unknown, ...a: number[]) => calls.push(a) } as unknown as Parameters<typeof drawCover>[0]
+    // 200×100 image into a 100×100 frame: cover scale 1, 100px of horizontal overhang.
+    drawCover(ctx, { source: {}, width: 200, height: 100 } as Parameters<typeof drawCover>[1], 100, 100, focus)
+    return calls[0].map((v) => v + 0) // -0 → 0
+  }
+
+  it('centers by default and follows the focus like CSS background-position', () => {
+    expect(draw()).toEqual([-50, 0, 200, 100])
+    expect(draw({ x: 0, y: 0.5, zoom: 1 })).toEqual([0, 0, 200, 100])
+    expect(draw({ x: 1, y: 0.5, zoom: 1 })).toEqual([-100, 0, 200, 100])
+  })
+
+  it('zoom enlarges past cover around the focus', () => {
+    expect(draw({ x: 0.5, y: 0, zoom: 2 })).toEqual([-150, 0, 400, 200])
   })
 })
