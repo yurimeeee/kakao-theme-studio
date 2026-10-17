@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createDefaultConfig, createNewProject } from './defaults'
+import { createDefaultConfig, createNewProject, isElementDefault, resetElement } from './defaults'
 import { collectAssetIds, mapAssetRefs, migrateConfig, normalizeConfig, normalizeOrigin, UnsupportedSchemaError } from './normalize'
 import { activeAssetIds, resolveTheme } from './resolve'
 
@@ -149,5 +149,28 @@ describe('normalizeOrigin', () => {
       expect(normalizeOrigin(bad)).toBeNull()
     }
     expect(createNewProject().origin).toBeNull()
+  })
+})
+
+describe('resetElement', () => {
+  it('resets only the chosen element, and isElementDefault follows', () => {
+    const config = createDefaultConfig()
+    config.bubbles.send = { ...config.bubbles.send, mode: 'image', imageAssetId: 'ast_a', radius: 3 }
+    config.palette.accent = '#ff0000'
+    expect(isElementDefault(config, 'bubbleSend')).toBe(false)
+    expect(isElementDefault(config, 'bubbleReceive')).toBe(true)
+
+    resetElement(config, 'bubbleSend')
+    expect(config.bubbles.send).toEqual(createDefaultConfig().bubbles.send)
+    expect(config.palette.accent).toBe('#ff0000')
+    expect(isElementDefault(config, 'bubbleSend')).toBe(true)
+    expect(isElementDefault(config, 'palette')).toBe(false)
+  })
+
+  it('ignores key order of stored configs', () => {
+    const config = createDefaultConfig()
+    const { accent, text, subText, background } = config.palette
+    config.palette = { accent, text, subText, background }
+    expect(isElementDefault(config, 'palette')).toBe(true)
   })
 })

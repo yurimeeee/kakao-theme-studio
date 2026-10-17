@@ -176,3 +176,21 @@ test('대비가 낮은 글자색은 경고하고 읽기 쉬운 색으로 바꿀 
     await expect(panel.getByTestId('contrast-warning')).toHaveCount(0)
   }
 })
+
+test('요소를 기본값으로 되돌리고 실행 취소로 복구한다', async ({ page }) => {
+  await freshApp(page)
+  await page.getByRole('button', { name: '받는 말풍선' }).click()
+  const panel = page.getByRole('complementary', { name: /속성/ })
+  const reset = panel.getByRole('button', { name: '기본값으로 되돌리기' })
+  await expect(reset).toBeDisabled()
+
+  await panel.getByRole('radio', { name: '직각' }).click()
+  await expect(reset).toBeEnabled()
+  await reset.click()
+  await expect(panel.getByRole('radio', { name: '둥근' })).toHaveAttribute('aria-checked', 'true')
+  await expect(reset).toBeDisabled()
+  await expect(page.getByText('기본값으로 되돌렸어요.')).toBeVisible()
+
+  await page.getByRole('button', { name: '실행 취소' }).click()
+  await expect(panel.getByRole('radio', { name: '직각' })).toHaveAttribute('aria-checked', 'true')
+})

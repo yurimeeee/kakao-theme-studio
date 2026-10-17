@@ -1,10 +1,14 @@
+import { RotateCcw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useBlobUrl } from '@/assets/useAssetUrl'
+import { Button } from '@/components/ui/Button'
 import { ColorField } from '@/components/ui/ColorField'
 import { NEUTRAL_SWATCHES } from '@/components/ui/swatches'
+import { toast } from '@/components/ui/toast'
 import { FieldGroup, Notice } from '@/components/ui/Section'
 import { Segmented } from '@/components/ui/Segmented'
 import { contrastRatio } from '@/domain/theme/color'
+import { isElementDefault, resetElement } from '@/domain/theme/defaults'
 import { resolveThemeCached, type ResolvedFill } from '@/domain/theme/resolve'
 import { TAB_KEYS, type ElementKey, type HexColor, type TabKey } from '@/domain/theme/types'
 import { renderThumbnail, thumbnailKey } from '../../projects/thumbnail'
@@ -334,7 +338,38 @@ function PasscodePanel() {
   )
 }
 
+/** Puts the open element back to its defaults; 실행 취소 brings the previous settings back. */
+function ResetElement({ element }: { element: ElementKey }) {
+  const isDefault = useEditor((s) => isElementDefault(s.project!.config, element))
+  const update = useUpdate()
+  return (
+    <Button
+      variant="soft"
+      className="min-h-10 self-start px-4 text-[13px] font-medium"
+      disabled={isDefault}
+      onClick={() => {
+        update((c) => resetElement(c, element), { newStep: true })
+        toast('기본값으로 되돌렸어요. 실행 취소로 되돌릴 수 있어요.')
+      }}
+    >
+      <RotateCcw className="size-4" aria-hidden />
+      기본값으로 되돌리기
+    </Button>
+  )
+}
+
 export function ElementPanel({ element }: { element: ElementKey }) {
+  return (
+    <div className="flex flex-col gap-6">
+      <ElementSettings element={element} />
+      <div className="border-t border-hair pt-5">
+        <ResetElement element={element} />
+      </div>
+    </div>
+  )
+}
+
+function ElementSettings({ element }: { element: ElementKey }) {
   switch (element) {
     case 'palette':
       return <PalettePanel />

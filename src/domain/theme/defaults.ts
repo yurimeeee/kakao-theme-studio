@@ -2,6 +2,7 @@ import { createExportThemeId, createLocalProjectId } from './ids'
 import {
   CURRENT_SCHEMA_VERSION,
   type BubbleSetting,
+  type ElementKey,
   type ThemeConfig,
   type ThemeProject,
 } from './types'
@@ -89,6 +90,50 @@ export function createDefaultConfig(): ThemeConfig {
       },
     },
   }
+}
+
+/** Where each editor element lives in the config. */
+const ELEMENT_PATHS: Record<ElementKey, readonly [keyof ThemeConfig, ...string[]]> = {
+  palette: ['palette'],
+  background: ['background'],
+  bubbleSend: ['bubbles', 'send'],
+  bubbleReceive: ['bubbles', 'receive'],
+  headerInput: ['headerInput'],
+  profile: ['profile'],
+  themeIcon: ['themeIcon'],
+  tabs: ['tabs'],
+  passcode: ['passcode'],
+}
+
+type Node = Record<string, unknown>
+
+/** Structural equality for plain config data; key order does not matter (stored configs may differ). */
+function sameData(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
+  if (Array.isArray(a) !== Array.isArray(b)) return false
+  const ka = Object.keys(a)
+  if (ka.length !== Object.keys(b).length) return false
+  return ka.every((k) => sameData((a as Node)[k], (b as Node)[k]))
+}
+const parentOf = (config: ThemeConfig, element: ElementKey) => {
+  const path = ELEMENT_PATHS[element]
+  const parent = path.slice(0, -1).reduce<Node>((node, key) => node[key] as Node, config as unknown as Node)
+  return { parent, key: path[path.length - 1] }
+}
+
+/** Whether an element still has its default settings (a reset would change nothing). */
+export function isElementDefault(config: ThemeConfig, element: ElementKey): boolean {
+  const current = parentOf(config, element)
+  const initial = parentOf(createDefaultConfig(), element)
+  return sameData(current.parent[current.key], initial.parent[initial.key])
+}
+
+/** Put one element back to its defaults, in place. Its image references go too (실행 취소 restores them). */
+export function resetElement(config: ThemeConfig, element: ElementKey): void {
+  const { parent, key } = parentOf(config, element)
+  const initial = parentOf(createDefaultConfig(), element)
+  parent[key] = initial.parent[initial.key]
 }
 
 export function createNewProject(now = Date.now()): ThemeProject {

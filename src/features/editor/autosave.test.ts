@@ -248,6 +248,14 @@ describe('undo / redo', () => {
     expect(editor().project!.config.palette.accent).toBe(initial)
   })
 
+  it('keeps quick edits to different settings as separate steps', async () => {
+    await editor().open({ kind: 'new' })
+    editor().updateConfig((c) => void (c.bubbles.send.shape = 'square'))
+    at(100)
+    editor().updateConfig((c) => void (c.bubbles.send.radius = 4))
+    expect(editor().past).toHaveLength(2)
+  })
+
   it('history does not carry over to another project', async () => {
     await editor().open({ kind: 'new' })
     accent('#111111')

@@ -38,7 +38,8 @@ interface EditorState {
 
   open: (target: { kind: 'project'; id: string } | { kind: 'new' } | { kind: 'last' }) => Promise<void>
   close: () => void
-  updateConfig: (recipe: (draft: ThemeConfig) => void) => void
+  /** `newStep`: never merge into the previous undo step (one-off actions such as a reset). */
+  updateConfig: (recipe: (draft: ThemeConfig) => void, options?: { newStep?: boolean }) => void
   rename: (name: string) => void
   attachImage: (file: File) => Promise<AssetId>
   undo: () => void
@@ -51,9 +52,21 @@ interface EditorState {
 
 let loadToken = 0
 const HISTORY_LIMIT = 100
-/** Edits closer together than this (slider or color drags) form one undo step. */
+/** Quick edits to the same settings (a slider or color drag, typing a hex) form one undo step. */
 const COALESCE_MS = 500
-let lastEditAt = 0
+let lastEdit = { at: 0, paths: '' }
+
+/** Leaf paths that differ between two configs, e.g. `bubbles.send.radius`. */
+function changedPaths(a: unknown, b: unknown, path = '', out: string[] = []): string[] {
+  if (a === b) return out
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) {
+    out.push(path)
+    return out
+  }
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)])
+  for (const k of keys) changedPaths((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k], `${path}.${k}`, out)
+  return out
+}
 type Listener = () => void
 const editListeners = new Set<Listener>()
 /** Autosave subscribes here; kept outside the store to avoid a module cycle. */
@@ -107,7 +120,7 @@ export const useEditor = create<EditorState>((set, get) => {
       const record = assets.get(id)
       if (record) void getRepositories().assets.put({ ...record, lastAttachedAt: now }).catch(() => undefined)
     }
-    lastEditAt = 0
+    lastEdit = { at: 0, paths: '' }
     set({ project: { ...project, config }, past, future })
     markEdited()
   }
@@ -158,15 +171,16 @@ export const useEditor = create<EditorState>((set, get) => {
       set({ phase: 'idle', project: null, assets: new Map(), persisted: false, notice: null, saveState: { kind: 'idle' }, past: [], future: [] })
     },
 
-    updateConfig: (recipe) => {
+    updateConfig: (recipe, options) => {
       const { project, phase } = get()
       if (!project || phase !== 'ready') return
       const config = structuredClone(project.config)
       recipe(config)
       const now = Date.now()
+      const paths = changedPaths(project.config, config).join(' ')
       // Configs are replaced, never mutated, so the previous object is a safe snapshot.
-      const coalesce = now - lastEditAt < COALESCE_MS && get().past.length > 0
-      lastEditAt = now
+      const coalesce = !options?.newStep && now - lastEdit.at < COALESCE_MS && paths === lastEdit.paths && get().past.length > 0
+      lastEdit = options?.newStep ? { at: 0, paths: '' } : { at: now, paths }
       const past = coalesce ? get().past : [...get().past, project.config].slice(-HISTORY_LIMIT)
       set({ project: { ...project, config }, past, future: [] })
       markEdited()
