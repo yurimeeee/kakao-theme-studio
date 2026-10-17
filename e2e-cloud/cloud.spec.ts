@@ -55,7 +55,7 @@ test('공유: 링크 공개 → 비로그인 조회·다운로드, 공개 → �
   await freshApp(page)
   await signUp(page, newAccount('공유자'))
   // An image bubble: the shared preview must size it from the published manifest, not the editor.
-  await page.getByRole('button', { name: '받는 말풍선' }).click()
+  await page.getByRole('button', { name: '받는 말풍선', exact: true }).click()
   await page.getByRole('radio', { name: '이미지' }).click()
   await page.getByLabel('말풍선 이미지 파일 선택').setInputFiles({ name: 'bubble.png', mimeType: 'image/png', buffer: solidPng(90, 75, [255, 255, 255, 255]) })
   await expect(page.getByText('bubble.png')).toBeVisible()

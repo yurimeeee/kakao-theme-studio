@@ -12,12 +12,12 @@ test('내보내기: 검증된 구조의 .ktheme을 내려받는다', async ({ pa
   await page.getByLabel('목록 배경 이미지 파일 선택').setInputFiles({ name: 'bg.png', mimeType: 'image/png', buffer: solidPng(90, 160, [240, 230, 220, 255]) })
   await expect(page.getByText('bg.png')).toBeVisible()
 
-  await page.getByRole('button', { name: '받는 말풍선' }).click()
+  await page.getByRole('button', { name: '받는 말풍선', exact: true }).click()
   await page.getByRole('radio', { name: '이미지' }).click()
   await page.getByLabel('말풍선 이미지 파일 선택').setInputFiles({ name: 'bubble.png', mimeType: 'image/png', buffer: solidPng(90, 75, [255, 255, 255, 255]) })
   await expect(page.getByText('bubble.png')).toBeVisible()
 
-  await page.getByRole('button', { name: '보내는 말풍선' }).click()
+  await page.getByRole('button', { name: '보내는 말풍선', exact: true }).click()
   await page.getByRole('radio', { name: '색상' }).click()
   await page.getByRole('radio', { name: '캡슐' }).click()
 

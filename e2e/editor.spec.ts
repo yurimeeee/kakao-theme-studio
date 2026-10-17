@@ -91,7 +91,7 @@ test('편집 중 서버로 요청을 보내지 않는다', async ({ page }) => {
     if (r.method() !== 'GET') external.push(`${r.method()} ${r.url()}`)
   })
   await freshApp(page)
-  await page.getByRole('button', { name: '보내는 말풍선' }).click()
+  await page.getByRole('button', { name: '보내는 말풍선', exact: true }).click()
   await page.getByRole('radio', { name: '색상' }).click()
   await page.getByRole('radio', { name: '캡슐' }).click()
   await saveWithName(page, '네트워크 확인')
@@ -156,7 +156,7 @@ test('미리보기를 누르면 해당 요소가 선택되고 화면은 그대�
 
 test('대비가 낮은 글자색은 경고하고 읽기 쉬운 색으로 바꿀 수 있다', async ({ page }) => {
   await freshApp(page)
-  await page.getByRole('button', { name: '보내는 말풍선' }).click()
+  await page.getByRole('button', { name: '보내는 말풍선', exact: true }).click()
   const panel = page.getByRole('complementary', { name: /속성/ })
   await panel.getByRole('radio', { name: '색상' }).click()
   await panel.getByLabel('색상', { exact: true }).fill('#333333')
@@ -179,7 +179,7 @@ test('대비가 낮은 글자색은 경고하고 읽기 쉬운 색으로 바꿀 
 
 test('요소를 기본값으로 되돌리고 실행 취소로 복구한다', async ({ page }) => {
   await freshApp(page)
-  await page.getByRole('button', { name: '받는 말풍선' }).click()
+  await page.getByRole('button', { name: '받는 말풍선', exact: true }).click()
   const panel = page.getByRole('complementary', { name: /속성/ })
   const reset = panel.getByRole('button', { name: '기본값으로 되돌리기' })
   await expect(reset).toBeDisabled()
@@ -193,4 +193,23 @@ test('요소를 기본값으로 되돌리고 실행 취소로 복구한다', asy
 
   await page.getByRole('button', { name: '실행 취소' }).click()
   await expect(panel.getByRole('radio', { name: '직각' })).toHaveAttribute('aria-checked', 'true')
+})
+
+test('보내는 말풍선의 모양을 받는 말풍선에도 적용한다', async ({ page }) => {
+  await freshApp(page)
+  const panel = page.getByRole('complementary', { name: /속성/ })
+  await page.getByRole('button', { name: '보내는 말풍선', exact: true }).click()
+  const apply = panel.getByRole('button', { name: '받는 말풍선에도 적용' })
+  await expect(apply).toBeDisabled()
+  await panel.getByRole('radio', { name: '색상' }).click()
+  await panel.getByLabel('색상', { exact: true }).fill('#336699')
+  await panel.getByRole('radio', { name: '캡슐' }).click()
+  await apply.click()
+  await expect(apply).toBeDisabled()
+
+  await page.getByRole('button', { name: '받는 말풍선', exact: true }).click()
+  await expect(panel.getByRole('radio', { name: '캡슐' })).toHaveAttribute('aria-checked', 'true')
+  // Colors stay per side.
+  await expect(panel.getByRole('radio', { name: '기본' })).toHaveAttribute('aria-checked', 'true')
+  await expect(panel.getByRole('button', { name: '보내는 말풍선에도 적용' })).toBeDisabled()
 })

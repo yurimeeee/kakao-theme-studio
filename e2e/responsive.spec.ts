@@ -21,8 +21,8 @@ for (const width of [320, 390, 768, 1280]) {
 test('모바일 바텀시트: 열기·실시간 반영·완료·재열기 시 유지', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await freshApp(page)
-  await page.getByRole('button', { name: '보내는 말풍선' }).click()
-  const sheet = page.getByRole('dialog', { name: '보내는 말풍선' })
+  await page.getByRole('button', { name: '보내는 말풍선', exact: true }).click()
+  const sheet = page.getByRole('dialog', { name: '보내는 말풍선', exact: true })
   await expect(sheet).toBeVisible()
   await expect(sheet.getByRole('button', { name: '완료' })).toBeFocused({ timeout: 2000 }).catch(() => undefined)
   await sheet.getByRole('radio', { name: '색상' }).click()
@@ -31,7 +31,7 @@ test('모바일 바텀시트: 열기·실시간 반영·완료·재열기 시 �
   await sheet.getByRole('button', { name: '완료' }).click()
   await expect(sheet).toBeHidden()
 
-  await page.getByRole('button', { name: '보내는 말풍선' }).click()
+  await page.getByRole('button', { name: '보내는 말풍선', exact: true }).click()
   await expect(sheet.getByRole('radio', { name: '색상' })).toHaveAttribute('aria-checked', 'true')
   await expect(sheet.getByLabel('색상', { exact: true })).toHaveValue('#334455')
   await expect(sheet.getByRole('radio', { name: '직각' })).toHaveAttribute('aria-checked', 'true')
@@ -66,5 +66,5 @@ test('모바일: 미리보기의 말풍선을 누르면 속성 시트가 열린�
   await freshApp(page)
   await page.getByRole('radio', { name: '대화' }).click()
   await page.getByTestId('theme-preview').getByText('좋아!').click()
-  await expect(page.getByRole('dialog', { name: '보내는 말풍선' })).toBeVisible()
+  await expect(page.getByRole('dialog', { name: '보내는 말풍선', exact: true })).toBeVisible()
 })

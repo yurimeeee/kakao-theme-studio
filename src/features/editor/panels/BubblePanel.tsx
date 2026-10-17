@@ -3,6 +3,7 @@ import { useAssetUrl } from '@/assets/useAssetUrl'
 import { Button } from '@/components/ui/Button'
 import { ColorField } from '@/components/ui/ColorField'
 import { NEUTRAL_SWATCHES } from '@/components/ui/swatches'
+import { toast } from '@/components/ui/toast'
 import { FieldGroup, Notice } from '@/components/ui/Section'
 import { Segmented } from '@/components/ui/Segmented'
 import { Slider } from '@/components/ui/Slider'
@@ -48,6 +49,16 @@ function writeLayout(b: BubbleSetting, t: Target, patch: Partial<BubbleImageLayo
   if (t === 'main') Object.assign(b.advanced, next)
   else b.advanced.group = next
 }
+
+const OTHER = { send: 'receive', receive: 'send' } as const
+const BUBBLE_LABEL = { send: '보내는 말풍선', receive: '받는 말풍선' } as const
+
+/**
+ * The shape part of a generated bubble: corners and text padding. Colors and images stay
+ * per side (image bubbles usually point their tail the other way).
+ */
+const shapeOf = (b: BubbleSetting) => ({ shape: b.shape, radius: b.radius, insets: { ...b.advanced.insets } })
+const sameShape = (a: BubbleSetting, b: BubbleSetting) => JSON.stringify(shapeOf(a)) === JSON.stringify(shapeOf(b))
 
 /** Flat image lines of an asset, for the layout editor's warnings and rulers. */
 function useBubbleLines(assetId: AssetId | null) {
@@ -216,6 +227,22 @@ export function BubblePanel({ kind }: { kind: 'send' | 'receive' }) {
           />
           <Segmented label="모양" value={bubble.shape} options={SHAPES} onChange={(shape) => set({ shape })} />
           <Notice>내보낼 때 모양에 맞는 말풍선 이미지를 자동으로 만들어요.</Notice>
+          <Button
+            variant="soft"
+            className="min-h-10 self-start px-4 text-[13px] font-medium"
+            disabled={sameShape(bubble, config.bubbles[OTHER[kind]])}
+            onClick={() => {
+              update((c) => {
+                const { shape, radius, insets } = shapeOf(c.bubbles[kind])
+                Object.assign(c.bubbles[OTHER[kind]], { shape, radius })
+                c.bubbles[OTHER[kind]].advanced.insets = insets
+              }, { newStep: true })
+              toast(`${BUBBLE_LABEL[OTHER[kind]]}에 같은 모양을 적용했어요.`)
+            }}
+          >
+            {BUBBLE_LABEL[OTHER[kind]]}에도 적용
+          </Button>
+          <p className="-mt-2 text-[12px] text-sub">모양·둥글기·텍스트 여백을 같게 맞춰요. 색상은 그대로예요.</p>
         </FieldGroup>
       )}
 
