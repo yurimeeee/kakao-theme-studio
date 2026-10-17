@@ -153,3 +153,26 @@ test('미리보기를 누르면 해당 요소가 선택되고 화면은 그대�
   await preview.getByRole('navigation', { name: '하단 탭 미리보기' }).click()
   await expect(panel).toHaveAccessibleName('탭 아이콘 속성')
 })
+
+test('대비가 낮은 글자색은 경고하고 읽기 쉬운 색으로 바꿀 수 있다', async ({ page }) => {
+  await freshApp(page)
+  await page.getByRole('button', { name: '보내는 말풍선' }).click()
+  const panel = page.getByRole('complementary', { name: /속성/ })
+  await panel.getByRole('radio', { name: '색상' }).click()
+  await panel.getByLabel('색상', { exact: true }).fill('#333333')
+  await expect(panel.getByTestId('contrast-warning')).toHaveCount(0)
+
+  await panel.getByLabel('글자색', { exact: true }).fill('#444444')
+  const warning = panel.getByTestId('contrast-warning')
+  await expect(warning).toContainText('잘 안 보일 수 있어요')
+  await warning.getByRole('button', { name: '읽기 쉬운 색으로' }).click()
+  await expect(warning).toHaveCount(0)
+  await expect(panel.getByLabel('글자색', { exact: true })).toHaveValue('#ffffff')
+
+  // A fresh theme starts with readable defaults everywhere.
+  await page.goto('/#/editor/new')
+  for (const name of ['전체 색상', '보내는 말풍선', '받는 말풍선', '상단 · 입력창', '암호 입력']) {
+    await page.getByRole('button', { name, exact: true }).click()
+    await expect(panel.getByTestId('contrast-warning')).toHaveCount(0)
+  }
+})

@@ -4,7 +4,8 @@ import { ColorField } from '@/components/ui/ColorField'
 import { NEUTRAL_SWATCHES } from '@/components/ui/swatches'
 import { FieldGroup, Notice } from '@/components/ui/Section'
 import { Segmented } from '@/components/ui/Segmented'
-import { resolveThemeCached } from '@/domain/theme/resolve'
+import { contrastRatio } from '@/domain/theme/color'
+import { resolveThemeCached, type ResolvedFill } from '@/domain/theme/resolve'
 import { TAB_KEYS, type ElementKey, type HexColor, type TabKey } from '@/domain/theme/types'
 import { renderThumbnail, thumbnailKey } from '../../projects/thumbnail'
 import { ImageField } from '../ImageField'
@@ -14,13 +15,27 @@ import { modeOptions } from './modes'
 import { FillEditor } from './shared'
 
 const useConfig = () => useEditor((s) => s.project!.config)
+
+/** Contrast check against plain-color fills (photos are skipped); the least readable one is used. */
+function against(color: HexColor, min: number, ...fills: ResolvedFill[]) {
+  const plain = fills.filter((f) => !f.imageAssetId).map((f) => f.color)
+  if (!plain.length) return undefined
+  return { against: plain.reduce((worst, c) => (contrastRatio(color, c) < contrastRatio(color, worst) ? c : worst)), min }
+}
 const useUpdate = () => useEditor((s) => s.updateConfig)
 
 function PalettePanel() {
   const { palette } = useConfig()
   const update = useUpdate()
+  const minRatio: Partial<Record<keyof typeof palette, number>> = { text: 4.5, subText: 3 }
   const field = (key: keyof typeof palette, label: string) => (
-    <ColorField label={label} value={palette[key]} swatches={NEUTRAL_SWATCHES} onChange={(v) => update((c) => void (c.palette[key] = v))} />
+    <ColorField
+      label={label}
+      value={palette[key]}
+      swatches={NEUTRAL_SWATCHES}
+      onChange={(v) => update((c) => void (c.palette[key] = v))}
+      contrast={minRatio[key] ? { against: palette.background, min: minRatio[key] } : undefined}
+    />
   )
   return (
     <div className="flex flex-col gap-6">
@@ -72,10 +87,11 @@ function HeaderInputPanel() {
   const theme = resolveThemeCached(config)
   const hi = config.headerInput
   const custom = hi.mode === 'color'
-  const field = (key: Exclude<keyof typeof hi, 'mode'>, label: string, resolved: HexColor) => (
+  const field = (key: Exclude<keyof typeof hi, 'mode'>, label: string, resolved: HexColor, contrast?: { against: HexColor; min: number }) => (
     <ColorField
       label={label}
       value={custom ? hi[key] : resolved}
+      contrast={contrast}
       onChange={(v) =>
         update((c) => {
           if (c.headerInput.mode !== 'color') {
@@ -103,12 +119,14 @@ function HeaderInputPanel() {
         options={modeOptions(['default', 'color'] as const)}
         onChange={(mode) => update((c) => void (c.headerInput.mode = mode))}
       />
-      <FieldGroup title="상단">{field('headerTextColor', '상단 글자색', theme.header.text)}</FieldGroup>
+      <FieldGroup title="상단">
+        {field('headerTextColor', '상단 글자색', theme.header.text, against(theme.header.text, 3, theme.main.background, theme.chatroom.background))}
+      </FieldGroup>
       <FieldGroup title="입력창">
         {field('inputBackground', '입력창 배경', theme.inputBar.background)}
         {field('sendBackground', '전송 버튼 배경', theme.inputBar.sendBackground)}
-        {field('sendIcon', '전송 버튼 아이콘', theme.inputBar.sendIcon)}
-        {field('buttonColor', '기타 버튼', theme.inputBar.button)}
+        {field('sendIcon', '전송 버튼 아이콘', theme.inputBar.sendIcon, { against: theme.inputBar.sendBackground, min: 3 })}
+        {field('buttonColor', '기타 버튼', theme.inputBar.button, { against: theme.inputBar.background, min: 3 })}
       </FieldGroup>
       {!custom && <Notice>지금은 전체 색상을 따라요. 색을 바꾸면 이 요소만 개별 색상으로 바뀌어요.</Notice>}
     </div>
@@ -251,10 +269,11 @@ function PasscodePanel() {
   const theme = resolveThemeCached(config)
   const pc = config.passcode
   const bullets = pc.bullets
-  const optional = (key: 'titleColor' | 'keypadTextColor' | 'keypadBackground' | 'pressedColor', label: string, resolved: HexColor) => (
+  const optional = (key: 'titleColor' | 'keypadTextColor' | 'keypadBackground' | 'pressedColor', label: string, resolved: HexColor, contrast?: { against: HexColor; min: number }) => (
     <ColorField
       label={label}
       value={pc[key] ?? resolved}
+      contrast={contrast}
       onChange={(v) => update((c) => void (c.passcode[key] = v))}
       auto={{ active: pc[key] === null, onReset: () => update((c) => void (c.passcode[key] = null)), label: '자동' }}
     />
@@ -270,8 +289,8 @@ function PasscodePanel() {
         />
       </FieldGroup>
       <FieldGroup title="글자 · 키패드">
-        {optional('titleColor', '제목·안내 글자색', theme.passcode.title)}
-        {optional('keypadTextColor', '숫자색', theme.passcode.keypadText)}
+        {optional('titleColor', '제목·안내 글자색', theme.passcode.title, against(theme.passcode.title, 4.5, theme.passcode.background))}
+        {optional('keypadTextColor', '숫자색', theme.passcode.keypadText, against(theme.passcode.keypadText, 3, { color: theme.passcode.keypadBackground, imageAssetId: pc.keypadBackground ? null : theme.passcode.background.imageAssetId }))}
         {optional('keypadBackground', '키패드 배경', theme.passcode.keypadBackground)}
         {optional('pressedColor', '눌림 표시', theme.passcode.pressed)}
       </FieldGroup>

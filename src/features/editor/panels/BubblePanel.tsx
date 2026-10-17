@@ -158,6 +158,8 @@ export function BubblePanel({ kind }: { kind: 'send' | 'receive' }) {
           value={resolved.textColor}
           onChange={(textColor) => set({ textColor })}
           auto={{ active: bubble.textColor === null, onReset: () => set({ textColor: null }), label: '자동' }}
+          // An image bubble's color under the text is unknown.
+          contrast={resolved.kind === 'generated' ? { against: resolved.color, min: 4.5 } : undefined}
         />
       </FieldGroup>
 
