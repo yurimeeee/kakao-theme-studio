@@ -36,7 +36,7 @@ function HeaderIcons({ color, icons }: { color: string; icons: typeof Search[] }
 export function FriendsScreen({ theme }: { theme: ResolvedTheme }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex items-center justify-between px-4 pb-2 pt-1">
+      <header className="flex items-center justify-between px-4 pb-2 pt-1" data-element="headerInput">
         <h4 className="text-[20px] font-bold" style={{ color: theme.header.text }}>
           친구
         </h4>
@@ -83,7 +83,7 @@ export function FriendsScreen({ theme }: { theme: ResolvedTheme }) {
 export function ChatListScreen({ theme }: { theme: ResolvedTheme }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex items-center justify-between px-4 pb-2 pt-1">
+      <header className="flex items-center justify-between px-4 pb-2 pt-1" data-element="headerInput">
         <h4 className="text-[20px] font-bold" style={{ color: theme.header.text }}>
           채팅
         </h4>
@@ -123,7 +123,7 @@ export function ChatRoomScreen({ theme }: { theme: ResolvedTheme }) {
   )
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex items-center justify-between px-3 pb-2 pt-1" style={{ color: theme.header.text }}>
+      <header className="flex items-center justify-between px-3 pb-2 pt-1" style={{ color: theme.header.text }} data-element="headerInput">
         <ChevronLeft className="size-5" aria-hidden />
         <h4 className="text-[15px] font-semibold">라이언</h4>
         <Menu className="size-5" aria-hidden />
@@ -139,10 +139,10 @@ export function ChatRoomScreen({ theme }: { theme: ResolvedTheme }) {
               라이언
             </span>
             <div className="flex items-end gap-1">
-              <Bubble bubble={theme.bubbles.receive}>오늘 하루는 어땠어?</Bubble>
+              <Bubble bubble={theme.bubbles.receive} element="bubbleReceive">오늘 하루는 어땠어?</Bubble>
             </div>
             <div className="flex items-end gap-1">
-              <Bubble bubble={theme.bubbles.receive} group>
+              <Bubble bubble={theme.bubbles.receive} element="bubbleReceive" group>
                 나는 새 테마를 만들고 있어
               </Bubble>
               {time('오후 2:10')}
@@ -152,11 +152,11 @@ export function ChatRoomScreen({ theme }: { theme: ResolvedTheme }) {
         <div className="mt-1 flex flex-col items-end gap-1">
           <div className="flex items-end gap-1">
             {time('')}
-            <Bubble bubble={theme.bubbles.send}>좋아!</Bubble>
+            <Bubble bubble={theme.bubbles.send} element="bubbleSend">좋아!</Bubble>
           </div>
           <div className="flex items-end gap-1">
             {time('오후 2:12')}
-            <Bubble bubble={theme.bubbles.send} group>말풍선이 길어지면 이렇게 여러 줄로 보여요. 모서리와 여백을 함께 확인해 보세요.</Bubble>
+            <Bubble bubble={theme.bubbles.send} element="bubbleSend" group>말풍선이 길어지면 이렇게 여러 줄로 보여요. 모서리와 여백을 함께 확인해 보세요.</Bubble>
           </div>
         </div>
         <div className="mt-1 flex gap-2">
@@ -166,13 +166,13 @@ export function ChatRoomScreen({ theme }: { theme: ResolvedTheme }) {
               튜브
             </span>
             <div className="flex items-end gap-1">
-              <Bubble bubble={theme.bubbles.receive}>사진 있는 친구는 그대로예요</Bubble>
+              <Bubble bubble={theme.bubbles.receive} element="bubbleReceive">사진 있는 친구는 그대로예요</Bubble>
               {time('오후 2:14')}
             </div>
           </div>
         </div>
       </div>
-      <div className="flex shrink-0 items-center gap-2 px-2.5 pb-6 pt-2" style={{ background: theme.inputBar.background }}>
+      <div className="flex shrink-0 items-center gap-2 px-2.5 pb-6 pt-2" style={{ background: theme.inputBar.background }} data-element="headerInput">
         <Plus className="size-5 shrink-0" style={{ color: theme.inputBar.button }} aria-hidden />
         <div className="flex h-8 min-w-0 flex-1 items-center rounded-full px-3 text-[11px]" style={{ background: theme.inputBar.menuBackground, color: theme.palette.subText }}>
           메시지 입력

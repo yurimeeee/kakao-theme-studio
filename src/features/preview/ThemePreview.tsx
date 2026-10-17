@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { SCREEN_LABELS } from '../editor/elements'
 import { resolveThemeCached } from '@/domain/theme/resolve'
-import type { PreviewScreen, ThemeConfig } from '@/domain/theme/types'
+import type { ElementKey, PreviewScreen, ThemeConfig } from '@/domain/theme/types'
 import { HomeIndicator, StatusBar } from './parts'
 import { useFillStyle } from './useFillStyle'
 import { ChatListScreen, ChatRoomScreen, FriendsScreen, PasscodeScreen } from './screens'
@@ -12,8 +12,11 @@ const PHONE_H = 630
 /**
  * KakaoTalk-like preview rendered from the same ResolvedTheme as the exporter.
  * Drawn at a fixed logical size and scaled to fit, so 320px screens keep layout.
+ *
+ * With `onSelectElement`, clicking a part selects its element: parts carry `data-element`
+ * and the innermost one wins. The element list stays the keyboard path.
  */
-export function ThemePreview({ config, screen }: { config: ThemeConfig; screen: PreviewScreen }) {
+export function ThemePreview({ config, screen, onSelectElement }: { config: ThemeConfig; screen: PreviewScreen; onSelectElement?: (k: ElementKey) => void }) {
   const theme = resolveThemeCached(config)
   const hostRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
@@ -33,6 +36,13 @@ export function ThemePreview({ config, screen }: { config: ThemeConfig; screen: 
   const statusColor = screen === 'passcode' ? theme.passcode.title : theme.header.text
   const fill = screen === 'chatroom' ? theme.chatroom.background : screen === 'passcode' ? theme.passcode.background : theme.main.background
   const fillStyle = useFillStyle(fill)
+  const onClick = (e: MouseEvent) => {
+    const target = e.target as Element
+    // Keypad keys simulate input instead.
+    if (!onSelectElement || target.closest('button')) return
+    const key = target.closest<HTMLElement>('[data-element]')?.dataset.element
+    if (key) onSelectElement(key as ElementKey)
+  }
   return (
     <div ref={hostRef} className="flex w-full justify-center">
       <div style={{ width: PHONE_W * scale, height: PHONE_H * scale }}>
@@ -40,10 +50,12 @@ export function ThemePreview({ config, screen }: { config: ThemeConfig; screen: 
           role="group"
           aria-label={`카카오톡 테마 미리보기: ${SCREEN_LABELS[screen]}`}
           data-testid="theme-preview"
+          data-pickable={onSelectElement ? '' : undefined}
+          onClick={onClick}
           className="relative flex origin-top-left flex-col overflow-hidden rounded-[40px] border-[6px] border-white bg-white shadow-[var(--shadow-phone)]"
           style={{ width: PHONE_W, height: PHONE_H, transform: `scale(${scale})` }}
         >
-          <div className="relative flex min-h-0 flex-1 flex-col" style={fillStyle}>
+          <div className="relative flex min-h-0 flex-1 flex-col" style={fillStyle} data-element={screen === 'passcode' ? 'passcode' : 'background'}>
             <div className="absolute inset-x-0 top-0 z-10">
               <StatusBar color={statusColor} />
             </div>

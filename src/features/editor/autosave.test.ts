@@ -207,3 +207,88 @@ describe('editor open', () => {
     expect(editor().saveState.kind).toBe('pending')
   })
 })
+
+describe('undo / redo', () => {
+  const at = (ms: number) => vi.advanceTimersByTime(ms)
+
+  it('steps back and forward through edits, and a new edit clears redo', async () => {
+    await editor().open({ kind: 'new' })
+    const initial = editor().project!.config.palette.accent
+    accent('#111111')
+    at(1000)
+    accent('#222222')
+    expect(editor().past).toHaveLength(2)
+
+    editor().undo()
+    expect(editor().project!.config.palette.accent).toBe('#111111')
+    editor().undo()
+    expect(editor().project!.config.palette.accent).toBe(initial)
+    editor().undo() // nothing left: no-op
+    expect(editor().project!.config.palette.accent).toBe(initial)
+
+    editor().redo()
+    expect(editor().project!.config.palette.accent).toBe('#111111')
+    expect(editor().saveState.kind).toBe('pending')
+    at(1000)
+    accent('#333333')
+    expect(editor().future).toHaveLength(0)
+    editor().redo()
+    expect(editor().project!.config.palette.accent).toBe('#333333')
+  })
+
+  it('folds a quick run of edits (a slider drag) into one step', async () => {
+    await editor().open({ kind: 'new' })
+    const initial = editor().project!.config.palette.accent
+    for (let i = 1; i <= 5; i++) {
+      accent(`#00000${i}`)
+      at(100)
+    }
+    expect(editor().past).toHaveLength(1)
+    editor().undo()
+    expect(editor().project!.config.palette.accent).toBe(initial)
+  })
+
+  it('history does not carry over to another project', async () => {
+    await editor().open({ kind: 'new' })
+    accent('#111111')
+    const p = await persistedProject()
+    await editor().open({ kind: 'project', id: p.id })
+    expect(editor()).toMatchObject({ past: [], future: [] })
+  })
+
+  it('undoing an image removal restores the image autosave already cleaned up', async () => {
+    const p = await persistedProject()
+    const now = Date.now()
+    const record = {
+      id: 'ast_bg',
+      projectId: p.id,
+      blob: new Blob([new Uint8Array([1, 2, 3])], { type: 'image/png' }),
+      mime: 'image/png' as const,
+      width: 1,
+      height: 1,
+      size: 3,
+      hash: 'h',
+      name: 'bg.png',
+      createdAt: now,
+      lastAttachedAt: now,
+    }
+    const { assets, projects } = getRepositories()
+    await assets.put(record)
+    p.config.background.main = { mode: 'image', color: '#ffffff', imageAssetId: record.id }
+    const saved = await projects.save(p, { snapshotAt: now })
+    await editor().open({ kind: 'project', id: saved.id })
+
+    at(10)
+    editor().updateConfig((c) => void (c.background.main.imageAssetId = null))
+    at(800)
+    await idle()
+    expect(await assets.get(record.id)).toBeNull()
+
+    editor().undo()
+    expect(editor().project!.config.background.main.imageAssetId).toBe(record.id)
+    at(800)
+    await idle()
+    expect(await assets.get(record.id)).not.toBeNull()
+    expect((await stored(saved.id))?.config.background.main.imageAssetId).toBe(record.id)
+  })
+})

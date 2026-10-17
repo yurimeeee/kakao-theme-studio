@@ -3,7 +3,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { useAssetSize, useAssetUrl } from '@/assets/useAssetUrl'
 import { mix } from '@/domain/theme/color'
 import type { ResolvedBubble, ResolvedTheme } from '@/domain/theme/resolve'
-import type { HexColor, TabKey } from '@/domain/theme/types'
+import type { ElementKey, HexColor, TabKey } from '@/domain/theme/types'
 import { effectiveRadius, imageBubbleGeometry, pxPerPt } from '@/exporters/ktheme/bubbleGeometry'
 
 export function StatusBar({ color }: { color: HexColor }) {
@@ -34,6 +34,7 @@ export function Avatar({ theme, photo, size = 40 }: { theme: ResolvedTheme; phot
       className="flex shrink-0 items-center justify-center overflow-hidden"
       style={{ width: size, height: size, borderRadius: radius, background: bg }}
       data-testid="default-profile"
+      data-element="profile"
     >
       {url ? <img src={url} alt="" className="size-full object-cover" /> : <UserRound style={{ color: fg, width: size * 0.55, height: size * 0.55 }} fill={fg} strokeWidth={0} />}
     </span>
@@ -78,6 +79,7 @@ export function TabBar({ theme, active }: { theme: ResolvedTheme; active: TabKey
   return (
     <nav
       aria-label="하단 탭 미리보기"
+      data-element="tabs"
       className="flex h-[62px] shrink-0 items-start justify-around px-2 pt-2.5"
       style={{ background: theme.tabs.barColor ?? theme.main.background.color, borderTop: `1px solid ${theme.main.sectionBorder}` }}
     >
@@ -102,7 +104,7 @@ export function HomeIndicator({ color }: { color: HexColor }) {
  * Bubble preview. Generated bubbles use the same radius rule as the exporter; image bubbles use
  * border-image with the export stretch point. `group` = 연속 메시지 (its own image and layout).
  */
-export function Bubble({ bubble, group, children }: { bubble: ResolvedBubble; group?: boolean; children: ReactNode }) {
+export function Bubble({ bubble, group, element, children }: { bubble: ResolvedBubble; group?: boolean; element?: ElementKey; children: ReactNode }) {
   const imageId = group ? (bubble.groupImageAssetId ?? bubble.imageAssetId) : bubble.imageAssetId
   const layout = group ? bubble.group : bubble
   const url = useAssetUrl(imageId)
@@ -125,6 +127,7 @@ export function Bubble({ bubble, group, children }: { bubble: ResolvedBubble; gr
     const right = Math.max(0, g.widthPt - g.stretch.x - 1)
     return (
       <div
+        data-element={element}
         style={{
           ...base,
           borderStyle: 'solid',
@@ -141,5 +144,9 @@ export function Bubble({ bubble, group, children }: { bubble: ResolvedBubble; gr
       </div>
     )
   }
-  return <div style={{ ...base, background: bubble.color, borderRadius: effectiveRadius(bubble) }}>{children}</div>
+  return (
+    <div data-element={element} style={{ ...base, background: bubble.color, borderRadius: effectiveRadius(bubble) }}>
+      {children}
+    </div>
+  )
 }

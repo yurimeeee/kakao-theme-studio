@@ -105,3 +105,15 @@
 @utility pb-safe {
   padding-bottom: max(16px, env(safe-area-inset-bottom));
 }
+
+/* Editor preview: the innermost part under the pointer shows what a click will select. */
+[data-pickable] [data-element] {
+  cursor: pointer;
+}
+@media (hover: hover) {
+  [data-pickable] [data-element]:hover:not(:has([data-element]:hover)) {
+    outline: 2px solid var(--color-ink);
+    outline-offset: -2px;
+    box-shadow: inset 0 0 0 4px rgb(255 255 255 / 0.6);
+  }
+}

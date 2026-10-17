@@ -97,3 +97,59 @@ test('편집 중 서버로 요청을 보내지 않는다', async ({ page }) => {
   await saveWithName(page, '네트워크 확인')
   expect(external).toEqual([])
 })
+
+test('실행 취소·다시 실행: 버튼과 단축키, 글자 입력 중에는 브라우저 기본 동작', async ({ page }) => {
+  await freshApp(page)
+  const undo = page.getByRole('button', { name: '실행 취소' })
+  const redo = page.getByRole('button', { name: '다시 실행' })
+  await expect(undo).toBeDisabled()
+
+  await page.getByRole('button', { name: '전체 색상' }).click()
+  const accent = page.getByLabel('강조색', { exact: true })
+  const initial = await accent.inputValue()
+  await accent.fill('#123456')
+  await expect(undo).toBeEnabled()
+
+  await undo.click()
+  await expect(accent).toHaveValue(initial)
+  await expect(redo).toBeEnabled()
+  await redo.click()
+  await expect(accent).toHaveValue('#123456')
+
+  await page.locator('body').click({ position: { x: 5, y: 5 } })
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(accent).toHaveValue(initial)
+  await page.keyboard.press('ControlOrMeta+Shift+z')
+  await expect(accent).toHaveValue('#123456')
+
+  // Inside a text field the shortcut belongs to the field.
+  await accent.focus()
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(redo).toBeDisabled()
+  await waitSaved(page)
+})
+
+test('미리보기를 누르면 해당 요소가 선택되고 화면은 그대로다', async ({ page }) => {
+  await freshApp(page)
+  await page.getByRole('radio', { name: '대화' }).click()
+  const preview = page.getByTestId('theme-preview')
+  const panel = page.getByRole('complementary', { name: /속성/ })
+
+  await preview.getByText('오늘 하루는 어땠어?').click()
+  await expect(panel).toHaveAccessibleName('받는 말풍선 속성')
+  await preview.getByText('좋아!').click()
+  await expect(panel).toHaveAccessibleName('보내는 말풍선 속성')
+  await preview.getByText('메시지 입력').click()
+  await expect(panel).toHaveAccessibleName('상단 · 입력창 속성')
+
+  // Empty background: 배경 is selected but the 대화 screen stays.
+  await preview.getByText('10월 11일 일요일').click()
+  await expect(panel).toHaveAccessibleName('배경 속성')
+  await expect(page.getByRole('radio', { name: '대화' })).toHaveAttribute('aria-checked', 'true')
+
+  await page.getByRole('radio', { name: '친구' }).click()
+  await preview.getByTestId('default-profile').first().click()
+  await expect(panel).toHaveAccessibleName('기본 프로필 속성')
+  await preview.getByRole('navigation', { name: '하단 탭 미리보기' }).click()
+  await expect(panel).toHaveAccessibleName('탭 아이콘 속성')
+})

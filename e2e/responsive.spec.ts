@@ -60,3 +60,11 @@ test('아이콘 버튼은 한국어 접근성 이름과 툴팁을 가진다', as
   await expect(page.getByRole('tooltip', { name: '저장' })).toBeVisible()
   await expect(page.getByRole('button', { name: '내보내기', exact: true })).toBeVisible()
 })
+
+test('모바일: 미리보기의 말풍선을 누르면 속성 시트가 열린다', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await freshApp(page)
+  await page.getByRole('radio', { name: '대화' }).click()
+  await page.getByTestId('theme-preview').getByText('좋아!').click()
+  await expect(page.getByRole('dialog', { name: '보내는 말풍선' })).toBeVisible()
+})

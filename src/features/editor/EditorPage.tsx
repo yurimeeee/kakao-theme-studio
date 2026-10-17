@@ -1,4 +1,4 @@
-import { AlertCircle, Cloud, Download, Save, Share2, X } from 'lucide-react'
+import { AlertCircle, Cloud, Download, Redo2, Save, Share2, Undo2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { projectsHref, type Route } from '@/app/router'
 import { Button } from '@/components/ui/Button'
@@ -26,9 +26,38 @@ import { useEditor } from './store'
 import { useSaveFlow } from './useSaveFlow'
 
 /** The only part of the page that subscribes to the config. */
-function EditorPreview({ screen }: { screen: PreviewScreen }) {
+function EditorPreview({ screen, onSelect }: { screen: PreviewScreen; onSelect: (k: ElementKey) => void }) {
   const config = useEditor((s) => s.project?.config)
-  return config ? <ThemePreview config={config} screen={screen} /> : null
+  return config ? <ThemePreview config={config} screen={screen} onSelectElement={onSelect} /> : null
+}
+
+const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
+const UNDO_LABEL = `실행 취소 (${isMac ? '⌘Z' : 'Ctrl+Z'})`
+const REDO_LABEL = `다시 실행 (${isMac ? '⇧⌘Z' : 'Ctrl+Y'})`
+
+/** Text fields keep the browser's own undo. */
+function editsText(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  if (target.isContentEditable || target instanceof HTMLTextAreaElement) return true
+  return target instanceof HTMLInputElement && !['range', 'color', 'radio', 'checkbox', 'button', 'file'].includes(target.type)
+}
+
+function useUndoShortcuts(enabled: boolean) {
+  useEffect(() => {
+    if (!enabled) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(isMac ? e.metaKey : e.ctrlKey) || e.altKey || editsText(e.target)) return
+      const key = e.key.toLowerCase()
+      const redo = (key === 'z' && e.shiftKey) || (!isMac && key === 'y' && !e.shiftKey)
+      if (!redo && !(key === 'z' && !e.shiftKey)) return
+      e.preventDefault()
+      const { undo, redo: redoEdit } = useEditor.getState()
+      if (redo) redoEdit()
+      else undo()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [enabled])
 }
 
 export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }> }) {
@@ -42,7 +71,9 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
   const saveState = useEditor((s) => s.saveState)
   const selected = useEditor((s) => s.selected)
   const screen = useEditor((s) => s.screen)
-  const { open, select, setScreen, dismissNotice } = useEditor.getState()
+  const canUndo = useEditor((s) => s.past.length > 0)
+  const canRedo = useEditor((s) => s.future.length > 0)
+  const { open, select, setScreen, dismissNotice, undo, redo } = useEditor.getState()
   const isDesktop = useMediaQuery('(min-width: 1024px)')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [dialog, setDialog] = useState<'save' | 'export' | null>(null)
@@ -72,6 +103,7 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
       cancelled = true
     }
   }, [requested, open, sessionReady])
+  useUndoShortcuts(phase === 'ready')
 
   if (phase === 'loading' || phase === 'idle' || !sessionReady) {
     return (
@@ -99,6 +131,10 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
     select(k)
     if (!isDesktop) setSheetOpen(true)
   }
+  const onPreviewSelect = (k: ElementKey) => {
+    select(k, { keepScreen: true })
+    if (!isDesktop) setSheetOpen(true)
+  }
 
   const info = ELEMENTS[selected]
 
@@ -113,8 +149,8 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 sm:flex-nowrap">
+        <div className="min-w-0 basis-full sm:basis-auto">
           <h1 className="truncate text-[26px] font-bold leading-tight tracking-[-0.01em] lg:text-[30px]" data-testid="theme-name">
             {projectName}
           </h1>
@@ -128,7 +164,11 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
             )}
           </div>
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 gap-2 max-sm:w-full max-sm:justify-end">
+          <div className="flex gap-1">
+            <IconButton label={UNDO_LABEL} aria-label="실행 취소" icon={<Undo2 className="size-5" />} variant="ghost" disabled={!canUndo} onClick={undo} />
+            <IconButton label={REDO_LABEL} aria-label="다시 실행" icon={<Redo2 className="size-5" />} variant="ghost" disabled={!canRedo} onClick={redo} />
+          </div>
           {cloudAvailable && <IconButton label="공유" icon={<Share2 className="size-5" />} size="lg" onClick={onShare} />}
           <IconButton label="저장" icon={<Save className="size-5" />} size="lg" onClick={() => setDialog('save')} busy={saveState.kind === 'saving' && dialog === 'save'} />
           <IconButton label="내보내기" icon={<Download className="size-5" />} size="lg" variant="solid" onClick={() => setDialog('export')} />
@@ -153,9 +193,9 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
         <section aria-label="미리보기" className="flex min-w-0 flex-col items-center gap-4 rounded-[var(--radius-card)] bg-canvas px-2 py-5 sm:px-6 lg:sticky lg:top-6 lg:self-start lg:py-6">
           <Segmented label="미리보기 화면" hideLabel size="sm" value={screen} options={SCREEN_OPTIONS} onChange={setScreen} className="w-full max-w-[360px]" />
           <div className="w-full">
-            <EditorPreview screen={screen} />
+            <EditorPreview screen={screen} onSelect={onPreviewSelect} />
           </div>
-          <p className="text-[12px] text-sub">iOS 미리보기 · 실제 앱과 조금 다를 수 있어요</p>
+          <p className="text-center text-[12px] text-sub">미리보기를 눌러 요소를 고를 수 있어요 · 실제 앱과 조금 다를 수 있어요</p>
         </section>
 
         {isDesktop ? (

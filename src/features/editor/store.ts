@@ -32,18 +32,28 @@ interface EditorState {
   saveState: SaveState
   selected: ElementKey
   screen: PreviewScreen
+  /** Config snapshots for 실행 취소 / 다시 실행 (oldest first). Cleared when a project opens. */
+  past: ThemeConfig[]
+  future: ThemeConfig[]
 
   open: (target: { kind: 'project'; id: string } | { kind: 'new' } | { kind: 'last' }) => Promise<void>
   close: () => void
   updateConfig: (recipe: (draft: ThemeConfig) => void) => void
   rename: (name: string) => void
   attachImage: (file: File) => Promise<AssetId>
-  select: (element: ElementKey) => void
+  undo: () => void
+  redo: () => void
+  /** `keepScreen`: selecting from the preview should not switch the screen being looked at. */
+  select: (element: ElementKey, options?: { keepScreen?: boolean }) => void
   setScreen: (screen: PreviewScreen) => void
   dismissNotice: () => void
 }
 
 let loadToken = 0
+const HISTORY_LIMIT = 100
+/** Edits closer together than this (slider or color drags) form one undo step. */
+const COALESCE_MS = 500
+let lastEditAt = 0
 type Listener = () => void
 const editListeners = new Set<Listener>()
 /** Autosave subscribes here; kept outside the store to avoid a module cycle. */
@@ -79,8 +89,27 @@ export const useEditor = create<EditorState>((set, get) => {
       editSeq: 0,
       savedSeq: 0,
       saveState: persisted ? { kind: 'saved', at: project.updatedAt } : { kind: 'idle' },
+      past: [],
+      future: [],
     })
     if (missing.size) markEdited()
+  }
+
+  /** Swap in a config from history. Images it references may have been cleaned up by autosave since. */
+  const restore = (config: ThemeConfig, past: ThemeConfig[], future: ThemeConfig[]) => {
+    const { project, assets } = get()
+    if (!project) return
+    const before = collectAssetIds(project.config)
+    const revived = [...collectAssetIds(config)].filter((id) => !before.has(id))
+    const now = Date.now()
+    // Re-store from memory; a fresh lastAttachedAt keeps an in-flight save from deleting them again.
+    for (const id of revived) {
+      const record = assets.get(id)
+      if (record) void getRepositories().assets.put({ ...record, lastAttachedAt: now }).catch(() => undefined)
+    }
+    lastEditAt = 0
+    set({ project: { ...project, config }, past, future })
+    markEdited()
   }
 
   return {
@@ -95,6 +124,8 @@ export const useEditor = create<EditorState>((set, get) => {
     saveState: { kind: 'idle' },
     selected: 'bubbleSend',
     screen: 'chatroom',
+    past: [],
+    future: [],
 
     open: async (target) => {
       const token = ++loadToken
@@ -124,7 +155,7 @@ export const useEditor = create<EditorState>((set, get) => {
     close: () => {
       loadToken++
       objectUrls.clear()
-      set({ phase: 'idle', project: null, assets: new Map(), persisted: false, notice: null, saveState: { kind: 'idle' } })
+      set({ phase: 'idle', project: null, assets: new Map(), persisted: false, notice: null, saveState: { kind: 'idle' }, past: [], future: [] })
     },
 
     updateConfig: (recipe) => {
@@ -132,8 +163,25 @@ export const useEditor = create<EditorState>((set, get) => {
       if (!project || phase !== 'ready') return
       const config = structuredClone(project.config)
       recipe(config)
-      set({ project: { ...project, config } })
+      const now = Date.now()
+      // Configs are replaced, never mutated, so the previous object is a safe snapshot.
+      const coalesce = now - lastEditAt < COALESCE_MS && get().past.length > 0
+      lastEditAt = now
+      const past = coalesce ? get().past : [...get().past, project.config].slice(-HISTORY_LIMIT)
+      set({ project: { ...project, config }, past, future: [] })
       markEdited()
+    },
+
+    undo: () => {
+      const { past, future, project, phase } = get()
+      if (!project || phase !== 'ready' || !past.length) return
+      restore(past[past.length - 1], past.slice(0, -1), [project.config, ...future])
+    },
+
+    redo: () => {
+      const { past, future, project, phase } = get()
+      if (!project || phase !== 'ready' || !future.length) return
+      restore(future[0], [...past, project.config], future.slice(1))
     },
 
     rename: (name) => {
@@ -156,7 +204,8 @@ export const useEditor = create<EditorState>((set, get) => {
       return meta.id
     },
 
-    select: (element) => set({ selected: element, screen: ELEMENTS[element].screen ?? get().screen }),
+    select: (element, options) =>
+      set({ selected: element, screen: (options?.keepScreen ? null : ELEMENTS[element].screen) ?? get().screen }),
     setScreen: (screen) => set({ screen }),
     dismissNotice: () => set({ notice: null }),
   }
