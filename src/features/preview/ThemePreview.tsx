@@ -72,7 +72,7 @@ export function ThemePreview({
           className="relative flex origin-top-left flex-col overflow-hidden rounded-[40px] border-[6px] border-white bg-white shadow-[var(--shadow-phone)]"
           style={{ width: PHONE_W, height: PHONE_H, transform: `scale(${scale})` }}
         >
-          <div className="relative flex min-h-0 flex-1 flex-col" style={fillStyle} data-element={screen === 'passcode' ? 'passcode' : 'background'}>
+          <div className="relative flex min-h-0 flex-1 flex-col rounded-[34px]" style={fillStyle} data-element={screen === 'passcode' ? 'passcode' : 'background'}>
             <div className="absolute inset-x-0 top-0 z-10">
               <StatusBar color={statusColor} />
             </div>
