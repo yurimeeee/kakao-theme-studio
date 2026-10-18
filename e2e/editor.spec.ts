@@ -278,3 +278,30 @@ test('대화방 배경 이미지에서 색을 뽑아 전체 색상을 맞추고 
   await page.getByRole('button', { name: '실행 취소' }).click()
   await expect(panel.getByLabel('주요 배경', { exact: true })).toHaveValue('#ffffff')
 })
+
+test('대표색 하나로 전체 색상을 만들고 개별 색상도 따르게 한다', async ({ page }) => {
+  await freshApp(page)
+  const panel = page.getByRole('complementary', { name: /속성/ })
+  await page.getByRole('button', { name: '보내는 말풍선', exact: true }).click()
+  await panel.getByRole('radio', { name: '색상' }).click()
+  await panel.getByLabel('색상', { exact: true }).fill('#ff0000')
+
+  await page.getByRole('button', { name: '전체 색상' }).click()
+  await panel.getByRole('group', { name: '대표색 추천 색상' }).getByRole('button', { name: '#60A5FA 선택' }).click()
+  await panel.getByRole('radio', { name: '어둡게' }).click()
+  // Nothing changes until the combination is applied.
+  await expect(panel.getByLabel('주요 배경', { exact: true })).toHaveValue('#ffffff')
+  await panel.getByRole('button', { name: '이 조합 적용' }).click()
+  await expect(page.getByText('새 색 조합을 적용했어요.')).toBeVisible()
+
+  const background = await panel.getByLabel('주요 배경', { exact: true }).inputValue()
+  expect(parseInt(background.slice(5, 7), 16)).toBeLessThan(80)
+  await expect(panel.getByTestId('contrast-warning')).toHaveCount(0)
+  await page.getByRole('button', { name: '보내는 말풍선', exact: true }).click()
+  await expect(panel.getByRole('radio', { name: '기본' })).toHaveAttribute('aria-checked', 'true')
+
+  await page.getByRole('button', { name: '실행 취소' }).click()
+  await expect(panel.getByRole('radio', { name: '색상' })).toHaveAttribute('aria-checked', 'true')
+  await page.getByRole('button', { name: '전체 색상' }).click()
+  await expect(panel.getByLabel('주요 배경', { exact: true })).toHaveValue('#ffffff')
+})
