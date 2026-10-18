@@ -305,3 +305,23 @@ test('대표색 하나로 전체 색상을 만들고 개별 색상도 따르게 
   await page.getByRole('button', { name: '전체 색상' }).click()
   await expect(panel.getByLabel('주요 배경', { exact: true })).toHaveValue('#ffffff')
 })
+
+test('? 키나 버튼으로 단축키 도움말을 연다', async ({ page }) => {
+  await freshApp(page)
+  const help = page.getByRole('dialog', { name: '단축키와 조작법' })
+  await page.locator('body').press('?')
+  await expect(help).toBeVisible()
+  await expect(help.getByText('실행 취소', { exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(help).toHaveCount(0)
+
+  // Typing "?" in a text field stays typing.
+  await page.getByRole('button', { name: '전체 색상' }).click()
+  const hex = page.getByLabel('주요 배경', { exact: true })
+  await hex.focus()
+  await page.keyboard.press('?')
+  await expect(help).toHaveCount(0)
+
+  await page.getByRole('button', { name: '단축키와 조작법' }).click()
+  await expect(help).toBeVisible()
+})

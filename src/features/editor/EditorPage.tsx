@@ -1,5 +1,5 @@
-import { AlertCircle, Cloud, Download, Redo2, Save, Share2, Undo2, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { AlertCircle, Cloud, Download, Keyboard, Redo2, Save, Share2, Undo2, X } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
 import { projectsHref, type Route } from '@/app/router'
 import { Button } from '@/components/ui/Button'
 import { IconButton } from '@/components/ui/IconButton'
@@ -22,6 +22,8 @@ import { ElementChips, ElementNav } from './ElementNav'
 import { ELEMENTS, SCREEN_OPTIONS } from './elements'
 import { ElementPanel } from './panels/panels'
 import { SaveStatus } from './SaveStatus'
+import { ShortcutHelpDialog } from './ShortcutHelp'
+import { editsText, HELP_LABEL, isMac, REDO_LABEL, UNDO_LABEL, useHelpShortcut } from './shortcuts'
 import { useEditor } from './store'
 import { useSaveFlow } from './useSaveFlow'
 
@@ -29,17 +31,6 @@ import { useSaveFlow } from './useSaveFlow'
 function EditorPreview({ screen, onSelect }: { screen: PreviewScreen; onSelect: (k: ElementKey) => void }) {
   const config = useEditor((s) => s.project?.config)
   return config ? <ThemePreview config={config} screen={screen} onSelectElement={onSelect} /> : null
-}
-
-const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
-const UNDO_LABEL = `실행 취소 (${isMac ? '⌘Z' : 'Ctrl+Z'})`
-const REDO_LABEL = `다시 실행 (${isMac ? '⇧⌘Z' : 'Ctrl+Y'})`
-
-/** Text fields keep the browser's own undo. */
-function editsText(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  if (target.isContentEditable || target instanceof HTMLTextAreaElement) return true
-  return target instanceof HTMLInputElement && !['range', 'color', 'radio', 'checkbox', 'button', 'file'].includes(target.type)
 }
 
 function useUndoShortcuts(enabled: boolean) {
@@ -104,6 +95,8 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
     }
   }, [requested, open, sessionReady])
   useUndoShortcuts(phase === 'ready')
+  const [helpOpen, setHelpOpen] = useState(false)
+  useHelpShortcut(phase === 'ready', useCallback(() => setHelpOpen(true), []))
 
   if (phase === 'loading' || phase === 'idle' || !sessionReady) {
     return (
@@ -168,6 +161,7 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
           <div className="flex gap-1">
             <IconButton label={UNDO_LABEL} aria-label="실행 취소" icon={<Undo2 className="size-5" />} variant="ghost" disabled={!canUndo} onClick={undo} />
             <IconButton label={REDO_LABEL} aria-label="다시 실행" icon={<Redo2 className="size-5" />} variant="ghost" disabled={!canRedo} onClick={redo} />
+            <IconButton label={HELP_LABEL} aria-label="단축키와 조작법" icon={<Keyboard className="size-5" />} variant="ghost" className="max-sm:hidden" onClick={() => setHelpOpen(true)} />
           </div>
           {cloudAvailable && <IconButton label="공유" icon={<Share2 className="size-5" />} size="lg" onClick={onShare} />}
           <IconButton label="저장" icon={<Save className="size-5" />} size="lg" onClick={() => setDialog('save')} busy={saveState.kind === 'saving' && dialog === 'save'} />
@@ -267,6 +261,7 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
         <ShareDialog themeId={shareOpen ? cloudThemeId : null} themeName={projectName} onOpenChange={setShareOpen} />
       )}
 
+      <ShortcutHelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
       <ConflictDialog conflict={flow.conflict} busy={flow.conflictBusy} onResolve={(c) => void flow.resolveConflict(c)} onDismiss={flow.dismissConflict} />
     </div>
   )
