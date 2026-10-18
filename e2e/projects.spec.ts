@@ -48,3 +48,33 @@ test('내 작업: 여러 프로젝트를 격리해서 수정·삭제한다', asy
   await page.getByRole('dialog').getByRole('button', { name: '삭제', exact: true }).click()
   await expect(page.getByText('아직 만든 테마가 없어요.')).toBeVisible()
 })
+
+test('내 작업: 사본을 만들면 이미지까지 따로 보관되고 원본은 그대로다', async ({ page }) => {
+  await freshApp(page)
+  await page.getByRole('button', { name: '기본 프로필', exact: true }).click()
+  await page.getByRole('radio', { name: '이미지' }).click()
+  await page.getByLabel('기본 프로필 이미지 파일 선택').setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: solidPng(20, 20, [1, 2, 3, 255]) })
+  await saveWithName(page, '원본')
+  const originalId = await currentProjectId(page)
+
+  await page.getByRole('link', { name: '내 작업' }).click()
+  await page.getByRole('button', { name: '원본 사본 만들기' }).click()
+  await expect(page.getByText('사본을 만들었어요.')).toBeVisible()
+  const items = page.getByTestId('project-item')
+  await expect(items).toHaveCount(2)
+  await expect(items.first()).toContainText('원본 사본')
+
+  await page.getByRole('button', { name: '원본 사본 편집' }).click()
+  await expect(page.getByTestId('theme-name')).toHaveText('원본 사본')
+  const copyId = await currentProjectId(page)
+  expect(copyId).not.toBe(originalId)
+  expect(await countRows(page, 'assets', copyId)).toBe(1)
+  await page.getByRole('button', { name: '기본 프로필', exact: true }).click()
+  await expect(page.getByText('me.png')).toBeVisible()
+
+  // Removing the image from the copy leaves the original's image alone.
+  await page.getByRole('button', { name: '기본 프로필 이미지 제거' }).click()
+  await waitSaved(page)
+  expect(await countRows(page, 'assets', copyId)).toBe(0)
+  expect(await countRows(page, 'assets', originalId)).toBe(1)
+})

@@ -1,4 +1,4 @@
-import { Cloud, Download, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Cloud, CopyPlus, Download, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { cloudProjectsHref, editorHref, navigate, projectsHref } from '@/app/router'
 import { getRepositories } from '@/app/services'
@@ -18,6 +18,7 @@ import { normalizeThemeName, useEditor } from '../editor/store'
 import { ExportDialog } from '../export/ExportDialog'
 import { exportErrorMessage, exportProject } from '../export/exportProject'
 import { CloudThemesList } from './CloudThemesList'
+import { duplicateProject } from './duplicate'
 
 function Thumb({ blob }: { blob: Blob | null }) {
   return <ThumbFrame url={useBlobUrl(blob)} />
@@ -77,6 +78,7 @@ function LocalProjects() {
   const [deleting, setDeleting] = useState<ProjectSummary | null>(null)
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [duplicating, setDuplicating] = useState<string | null>(null)
 
   // Copies linked to an account are listed only while that account is signed in.
   const items = status === 'loading' ? null : (all?.filter((p) => isVisibleLocally(p.cloudOwnerId)) ?? null)
@@ -113,6 +115,20 @@ function LocalProjects() {
     }
     toast('테마 파일을 내려받았어요.')
     void load()
+  }
+
+  const duplicate = async (p: ProjectSummary) => {
+    if (duplicating) return
+    setDuplicating(p.id)
+    try {
+      await duplicateProject(p.id, p.thumbnail)
+      toast('사본을 만들었어요. 원본은 그대로예요.')
+      await load()
+    } catch (e) {
+      toast(storageErrorMessage(e))
+    } finally {
+      setDuplicating(null)
+    }
   }
 
   const confirmDelete = async () => {
@@ -158,8 +174,16 @@ function LocalProjects() {
                   </p>
                 </div>
               </div>
-              <div className="flex shrink-0 gap-2 pl-20 sm:pl-0">
+              <div className="flex shrink-0 justify-end gap-2">
                 <IconButton label={`${p.name} 편집`} icon={<Pencil className="size-[18px]" />} variant="surface" onClick={() => navigate(editorHref(p.id))} />
+                <IconButton
+                  label={`${p.name} 사본 만들기`}
+                  icon={<CopyPlus className="size-[18px]" />}
+                  variant="surface"
+                  busy={duplicating === p.id}
+                  disabled={duplicating !== null}
+                  onClick={() => void duplicate(p)}
+                />
                 <IconButton label={`${p.name} 내보내기`} icon={<Download className="size-[18px]" />} variant="surface" onClick={() => setExporting(p)} />
                 <IconButton
                   label={`${p.name} 삭제`}
