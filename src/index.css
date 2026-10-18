@@ -106,6 +106,10 @@
   padding-bottom: max(16px, env(safe-area-inset-bottom));
 }
 
+@utility pt-safe {
+  padding-top: max(12px, env(safe-area-inset-top));
+}
+
 /* Editor preview: the innermost part under the pointer shows what a click will select. */
 [data-pickable] [data-element] {
   cursor: pointer;

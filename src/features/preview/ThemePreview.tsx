@@ -23,12 +23,15 @@ export function ThemePreview({
   screen,
   onSelectElement,
   minScale = 0.6,
+  fit = 'width',
 }: {
   config: ThemeConfig
   screen: PreviewScreen
   onSelectElement?: (k: ElementKey) => void
   /** Smallest scale; lower it where several phones share a row. */
   minScale?: number
+  /** `contain`: also fit the height of the host, which must get its height from its parent. */
+  fit?: 'width' | 'contain'
 }) {
   const theme = resolveThemeCached(config)
   const hostRef = useRef<HTMLDivElement>(null)
@@ -38,13 +41,14 @@ export function ThemePreview({
     const el = hostRef.current
     if (!el) return
     const ro = new ResizeObserver(([entry]) => {
-      // Width only: the host's height follows the scaled phone, so using it would feed back.
-      const s = Math.min(1, entry.contentRect.width / PHONE_W)
+      // Width only by default: the host's height follows the scaled phone, so using it would feed back.
+      const { width, height } = entry.contentRect
+      const s = Math.min(1, width / PHONE_W, fit === 'contain' ? height / PHONE_H : 1)
       setScale(Math.max(minScale, Number(s.toFixed(3))))
     })
     ro.observe(el)
     return () => ro.disconnect()
-  }, [minScale])
+  }, [minScale, fit])
 
   const statusColor = screen === 'passcode' ? theme.passcode.title : theme.header.text
   const fill = screen === 'chatroom' ? theme.chatroom.background : screen === 'passcode' ? theme.passcode.background : theme.main.background
@@ -57,7 +61,7 @@ export function ThemePreview({
     if (key) onSelectElement(key as ElementKey)
   }
   return (
-    <div ref={hostRef} className="flex w-full justify-center">
+    <div ref={hostRef} className={fit === 'contain' ? 'flex size-full justify-center overflow-hidden' : 'flex w-full justify-center'}>
       <div style={{ width: PHONE_W * scale, height: PHONE_H * scale }}>
         <div
           role="group"

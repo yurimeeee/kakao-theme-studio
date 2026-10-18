@@ -28,9 +28,9 @@ import { useEditor } from './store'
 import { useSaveFlow } from './useSaveFlow'
 
 /** The only part of the page that subscribes to the config. */
-function EditorPreview({ screen, onSelect }: { screen: PreviewScreen; onSelect: (k: ElementKey) => void }) {
+function EditorPreview({ screen, onSelect, fit }: { screen: PreviewScreen; onSelect: (k: ElementKey) => void; fit?: 'contain' }) {
   const config = useEditor((s) => s.project?.config)
-  return config ? <ThemePreview config={config} screen={screen} onSelectElement={onSelect} /> : null
+  return config ? <ThemePreview config={config} screen={screen} onSelectElement={onSelect} fit={fit} minScale={fit ? 0.3 : undefined} /> : null
 }
 
 /** 네 화면 한 번에 보기: every screen side by side; a label opens that screen alone. */
@@ -252,7 +252,21 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
         ) : (
           <>
             <ElementChips selected={sheetOpen ? selected : null} onSelect={onSelect} />
-            <Sheet open={sheetOpen} onOpenChange={setSheetOpen} title={info.label} description={info.description}>
+            <Sheet
+              open={sheetOpen}
+              onOpenChange={setSheetOpen}
+              title={info.label}
+              description={info.description}
+              peek={
+                // Live preview above the sheet: edits show while editing, and tapping a part switches the element.
+                <div className="pt-safe flex h-full flex-col items-center gap-2 px-4 pb-3">
+                  <Segmented label="미리보기 화면" hideLabel size="sm" value={screen} options={SCREEN_OPTIONS} onChange={setScreen} className="w-full max-w-[360px]" />
+                  <div className="min-h-0 w-full flex-1">
+                    <EditorPreview screen={screen} onSelect={onPreviewSelect} fit="contain" />
+                  </div>
+                </div>
+              }
+            >
               <div className="pb-4">
                 <ElementPanel element={selected} />
               </div>
