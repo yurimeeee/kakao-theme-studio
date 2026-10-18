@@ -18,6 +18,7 @@ import { ImageField } from '../ImageField'
 import { useEditor } from '../store'
 import { BubblePanel } from './BubblePanel'
 import { modeOptions } from './modes'
+import { SchemeFromImage } from './SchemeFromImage'
 import { FillEditor } from './shared'
 
 const useConfig = () => useEditor((s) => s.project!.config)
@@ -63,6 +64,8 @@ function BackgroundPanel() {
   const config = useConfig()
   const update = useUpdate()
   const theme = resolveThemeCached(config)
+  // The chat room image is what bubbles sit on, so it leads.
+  const schemeImage = theme.chatroom.background.imageAssetId ?? theme.main.background.imageAssetId
   return (
     <div className="flex flex-col gap-6">
       <FieldGroup title="목록 배경" description="친구와 채팅 목록 화면이 함께 사용하는 하나의 배경이에요.">
@@ -85,6 +88,7 @@ function BackgroundPanel() {
           frame={RESOURCES.chatroomBackground.sizePt}
         />
       </FieldGroup>
+      {schemeImage && <SchemeFromImage key={schemeImage} assetId={schemeImage} />}
     </div>
   )
 }

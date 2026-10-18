@@ -254,3 +254,27 @@ test('배경·프로필 이미지의 보일 부분을 고르고 새로고침 후
   await page.keyboard.press('ArrowRight')
   await expect(page.getByTestId('theme-preview').locator('> div').first()).toHaveCSS('background-size', /105%/)
 })
+
+test('대화방 배경 이미지에서 색을 뽑아 전체 색상을 맞추고 실행 취소한다', async ({ page }) => {
+  await freshApp(page)
+  const panel = page.getByRole('complementary', { name: /속성/ })
+  await page.getByRole('button', { name: '배경', exact: true }).click()
+  await expect(panel.getByTestId('image-scheme')).toHaveCount(0)
+  const chatroom = panel.locator('section').filter({ hasText: '대화방 배경' }).first()
+  await chatroom.getByRole('radio', { name: '이미지' }).click()
+  await panel.getByLabel('대화방 배경 이미지 파일 선택').setInputFiles({ name: 'night.png', mimeType: 'image/png', buffer: solidPng(40, 80, [20, 40, 110, 255]) })
+  const block = panel.getByTestId('image-scheme')
+  await expect(block.getByRole('group', { name: '이미지에서 뽑은 색' }).getByRole('button')).toHaveCount(1)
+  await block.getByRole('button', { name: '이미지에 어울리게 맞추기' }).click()
+  await expect(page.getByText('이미지에 어울리는 색으로 바꿨어요.')).toBeVisible()
+
+  // A dark image gives a dark palette whose text stays readable.
+  await page.getByRole('button', { name: '전체 색상' }).click()
+  const background = await panel.getByLabel('주요 배경', { exact: true }).inputValue()
+  expect(background).not.toBe('#ffffff')
+  expect(parseInt(background.slice(1, 3), 16)).toBeLessThan(80)
+  await expect(panel.getByTestId('contrast-warning')).toHaveCount(0)
+
+  await page.getByRole('button', { name: '실행 취소' }).click()
+  await expect(panel.getByLabel('주요 배경', { exact: true })).toHaveValue('#ffffff')
+})
