@@ -325,3 +325,22 @@ test('? 키나 버튼으로 단축키 도움말을 연다', async ({ page }) => 
   await page.getByRole('button', { name: '단축키와 조작법' }).click()
   await expect(help).toBeVisible()
 })
+
+test('네 화면을 한 번에 보고, 누른 요소를 고르거나 한 화면으로 돌아간다', async ({ page }) => {
+  await freshApp(page)
+  await page.getByRole('button', { name: '전체 색상' }).click()
+  const toggle = page.getByRole('button', { name: '네 화면 한 번에 보기' })
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+  const previews = page.getByTestId('theme-preview')
+  await expect(previews).toHaveCount(4)
+
+  // Clicking a part in any phone selects its element.
+  await previews.nth(2).getByText('좋아!').click()
+  await expect(page.getByRole('complementary', { name: '보내는 말풍선 속성' })).toBeVisible()
+
+  await page.getByRole('button', { name: '암호 입력 화면 크게 보기' }).click()
+  await expect(previews).toHaveCount(1)
+  await expect(page.getByRole('radio', { name: '암호 입력' })).toHaveAttribute('aria-checked', 'true')
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+})

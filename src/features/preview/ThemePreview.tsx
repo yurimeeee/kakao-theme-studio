@@ -18,7 +18,18 @@ const SCREEN = { w: PHONE_W - 12, h: PHONE_H - 12 }
  * With `onSelectElement`, clicking a part selects its element: parts carry `data-element`
  * and the innermost one wins. The element list stays the keyboard path.
  */
-export function ThemePreview({ config, screen, onSelectElement }: { config: ThemeConfig; screen: PreviewScreen; onSelectElement?: (k: ElementKey) => void }) {
+export function ThemePreview({
+  config,
+  screen,
+  onSelectElement,
+  minScale = 0.6,
+}: {
+  config: ThemeConfig
+  screen: PreviewScreen
+  onSelectElement?: (k: ElementKey) => void
+  /** Smallest scale; lower it where several phones share a row. */
+  minScale?: number
+}) {
   const theme = resolveThemeCached(config)
   const hostRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
@@ -29,11 +40,11 @@ export function ThemePreview({ config, screen, onSelectElement }: { config: Them
     const ro = new ResizeObserver(([entry]) => {
       // Width only: the host's height follows the scaled phone, so using it would feed back.
       const s = Math.min(1, entry.contentRect.width / PHONE_W)
-      setScale(Math.max(0.6, Number(s.toFixed(3))))
+      setScale(Math.max(minScale, Number(s.toFixed(3))))
     })
     ro.observe(el)
     return () => ro.disconnect()
-  }, [])
+  }, [minScale])
 
   const statusColor = screen === 'passcode' ? theme.passcode.title : theme.header.text
   const fill = screen === 'chatroom' ? theme.chatroom.background : screen === 'passcode' ? theme.passcode.background : theme.main.background

@@ -1,4 +1,4 @@
-import { AlertCircle, Cloud, Download, Keyboard, Redo2, Save, Share2, Undo2, X } from 'lucide-react'
+import { AlertCircle, Cloud, Download, Keyboard, LayoutGrid, Redo2, Save, Share2, Smartphone, Undo2, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { projectsHref, type Route } from '@/app/router'
 import { Button } from '@/components/ui/Button'
@@ -31,6 +31,31 @@ import { useSaveFlow } from './useSaveFlow'
 function EditorPreview({ screen, onSelect }: { screen: PreviewScreen; onSelect: (k: ElementKey) => void }) {
   const config = useEditor((s) => s.project?.config)
   return config ? <ThemePreview config={config} screen={screen} onSelectElement={onSelect} /> : null
+}
+
+/** 네 화면 한 번에 보기: every screen side by side; a label opens that screen alone. */
+function EditorPreviewAll({ onSelect, onOpenScreen }: { onSelect: (k: ElementKey) => void; onOpenScreen: (s: PreviewScreen) => void }) {
+  const config = useEditor((s) => s.project?.config)
+  if (!config) return null
+  return (
+    <div className="@container w-full">
+      <ul className="grid grid-cols-2 gap-x-3 gap-y-5 @2xl:grid-cols-4" aria-label="네 화면 미리보기">
+        {SCREEN_OPTIONS.map(({ value, label }) => (
+          <li key={value} className="flex min-w-0 flex-col items-center gap-2">
+            <ThemePreview config={config} screen={value} onSelectElement={onSelect} minScale={0.3} />
+            <button
+              type="button"
+              onClick={() => onOpenScreen(value)}
+              aria-label={`${label} 화면 크게 보기`}
+              className="min-h-9 rounded-full px-3 text-[13px] font-medium text-sub hover:bg-surface hover:text-ink"
+            >
+              {label}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
 }
 
 function useUndoShortcuts(enabled: boolean) {
@@ -96,6 +121,7 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
   }, [requested, open, sessionReady])
   useUndoShortcuts(phase === 'ready')
   const [helpOpen, setHelpOpen] = useState(false)
+  const [showAll, setShowAll] = useState(false)
   useHelpShortcut(phase === 'ready', useCallback(() => setHelpOpen(true), []))
 
   if (phase === 'loading' || phase === 'idle' || !sessionReady) {
@@ -185,9 +211,32 @@ export function EditorPage({ route }: { route: Extract<Route, { name: 'editor' }
         )}
 
         <section aria-label="미리보기" className="flex min-w-0 flex-col items-center gap-4 rounded-[var(--radius-card)] bg-canvas px-2 py-5 sm:px-6 lg:sticky lg:top-6 lg:self-start lg:py-6">
-          <Segmented label="미리보기 화면" hideLabel size="sm" value={screen} options={SCREEN_OPTIONS} onChange={setScreen} className="w-full max-w-[360px]" />
+          <div className="flex w-full max-w-[408px] items-center gap-2">
+            {showAll ? (
+              <p className="min-h-10 flex-1 content-center text-center text-[13px] font-medium text-ink">네 화면을 한 번에 보고 있어요</p>
+            ) : (
+              <Segmented label="미리보기 화면" hideLabel size="sm" value={screen} options={SCREEN_OPTIONS} onChange={setScreen} className="min-w-0 flex-1" />
+            )}
+            <IconButton
+              label="네 화면 한 번에 보기"
+              aria-pressed={showAll}
+              icon={showAll ? <Smartphone className="size-5" /> : <LayoutGrid className="size-5" />}
+              variant={showAll ? 'solid' : 'surface'}
+              onClick={() => setShowAll((v) => !v)}
+            />
+          </div>
           <div className="w-full">
-            <EditorPreview screen={screen} onSelect={onPreviewSelect} />
+            {showAll ? (
+              <EditorPreviewAll
+                onSelect={onPreviewSelect}
+                onOpenScreen={(s) => {
+                  setScreen(s)
+                  setShowAll(false)
+                }}
+              />
+            ) : (
+              <EditorPreview screen={screen} onSelect={onPreviewSelect} />
+            )}
           </div>
           <p className="text-center text-[12px] text-sub">미리보기를 눌러 요소를 고를 수 있어요 · 실제 앱과 조금 다를 수 있어요</p>
         </section>
