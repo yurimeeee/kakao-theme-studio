@@ -44,3 +44,6 @@ dist-smoke
 
 # Local-only project brief (spec, plan, design files) — not published
 kakao-theme-studio-development-kit/
+
+# Local-only notes (roadmap, ideas) — not published
+docs/private/

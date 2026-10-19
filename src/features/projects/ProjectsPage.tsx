@@ -19,6 +19,7 @@ import { ExportDialog } from '../export/ExportDialog'
 import { exportErrorMessage, exportProject } from '../export/exportProject'
 import { CloudThemesList } from './CloudThemesList'
 import { duplicateProject } from './duplicate'
+import { ImportKthemeButton } from './ImportKthemeButton'
 
 function Thumb({ blob }: { blob: Blob | null }) {
   return <ThumbFrame url={useBlobUrl(blob)} />
@@ -37,9 +38,12 @@ export function ProjectsPage({ tab }: { tab: 'local' | 'cloud' }) {
             {tab === 'cloud' ? '이 계정에 저장된 테마예요. 어느 기기에서든 이어서 꾸밀 수 있어요.' : '이 브라우저에 보관된 테마예요. 이어서 꾸며 보세요.'}
           </p>
         </div>
-        <Button onClick={() => navigate('#/editor/new')} className="hidden shrink-0 sm:inline-flex">
-          <Plus className="size-4" aria-hidden />새 테마
-        </Button>
+        <div className="flex shrink-0 gap-2">
+          <ImportKthemeButton />
+          <Button onClick={() => navigate('#/editor/new')} className="hidden sm:inline-flex">
+            <Plus className="size-4" aria-hidden />새 테마
+          </Button>
+        </div>
       </div>
       {status !== 'unavailable' && (
         <Segmented
