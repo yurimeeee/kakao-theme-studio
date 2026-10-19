@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
 import JSZip from 'jszip'
-import { freshApp, solidPng } from './helpers'
+import { freshApp, saveWithName, solidPng } from './helpers'
 
 /** 내 작업 with an empty IndexedDB. */
 async function emptyProjects(page: Page) {
@@ -96,6 +96,35 @@ test('가져오기: 빈 내 작업에서 파일을 끌어다 놓아 가져온다
 test('가져오기: 테마 파일이 아니면 알려 준다', async ({ page }) => {
   await emptyProjects(page)
   await page.getByTestId('import-ktheme-input').setInputFiles({ name: 'x.ktheme', mimeType: 'application/octet-stream', buffer: Buffer.from('hello') })
-  await expect(page.getByText('.ktheme 파일이 아니에요.', { exact: false })).toBeVisible()
+  await expect(page.getByText('테마 파일(.ktheme)이나 백업 파일(.ktproject)이 아니에요.')).toBeVisible()
   await expect(page).toHaveURL(/#\/projects$/)
+})
+
+test('백업: 백업 파일로 저장했다가 삭제 후 그대로 되살린다', async ({ page }) => {
+  await freshApp(page)
+  await page.getByRole('button', { name: '기본 프로필', exact: true }).click()
+  await page.getByRole('radio', { name: '이미지' }).click()
+  await page.getByLabel('기본 프로필 이미지 파일 선택').setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: solidPng(40, 40, [10, 20, 30, 255]) })
+  await expect(page.getByText('me.png')).toBeVisible()
+  await saveWithName(page, '백업할 테마')
+
+  await page.getByRole('link', { name: '내 작업' }).click()
+  const downloadPromise = page.waitForEvent('download')
+  await page.getByRole('button', { name: '백업할 테마 백업 파일 저장' }).click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toBe('백업할 테마.ktproject')
+  const file = (await download.path())!
+  await expect(page.getByText('백업 파일을 내려받았어요.', { exact: false })).toBeVisible()
+
+  await page.getByRole('button', { name: '백업할 테마 삭제' }).click()
+  await page.getByRole('dialog', { name: '테마를 삭제할까요?' }).getByRole('button', { name: '삭제' }).click()
+  await expect(page.getByText('아직 만든 테마가 없어요.')).toBeVisible()
+
+  await page.getByTestId('import-ktheme-input').setInputFiles(file)
+  await expect(page).toHaveURL(/#\/editor\/lp_/)
+  await expect(page.getByText("'백업할 테마' 백업을 불러왔어요.")).toBeVisible()
+  await expect(page.getByTestId('theme-name')).toHaveText('백업할 테마')
+  // The original upload comes back, not a rendered copy.
+  await page.getByRole('button', { name: '기본 프로필', exact: true }).click()
+  await expect(page.getByText('me.png')).toBeVisible()
 })

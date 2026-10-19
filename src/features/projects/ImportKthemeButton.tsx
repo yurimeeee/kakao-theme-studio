@@ -63,7 +63,7 @@ export function KthemeDropZone({ importer }: { importer: KthemeImport }) {
       <div className="flex flex-col items-center gap-3 rounded-[var(--radius-card)] border-2 border-dashed border-ink/40 bg-surface px-10 py-8 text-center shadow-[var(--shadow-pop)]">
         <FileUp className="size-8" aria-hidden />
         <p className="text-[16px] font-semibold">놓으면 테마를 가져와요</p>
-        <p className="text-[13px] text-sub">.ktheme 파일을 새 프로젝트로 열어요</p>
+        <p className="text-[13px] text-sub">.ktheme·백업 파일을 새 프로젝트로 열어요</p>
       </div>
     </div>
   )

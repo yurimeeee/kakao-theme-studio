@@ -1,4 +1,4 @@
-import { Cloud, CopyPlus, Download, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Archive, Cloud, CopyPlus, Download, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { cloudProjectsHref, editorHref, navigate, projectsHref } from '@/app/router'
 import { getRepositories } from '@/app/services'
@@ -9,6 +9,7 @@ import { IconButton } from '@/components/ui/IconButton'
 import { Segmented } from '@/components/ui/Segmented'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/States'
 import { toast } from '@/components/ui/toast'
+import { downloadBlob } from '@/lib/download'
 import { formatModified } from '@/lib/format'
 import { storageErrorMessage, type ProjectSummary } from '@/repositories/types'
 import { openLogin } from '../auth/authDialog'
@@ -17,6 +18,7 @@ import { ThumbFrame } from '../cloud/CloudThumb'
 import { normalizeThemeName, useEditor } from '../editor/store'
 import { ExportDialog } from '../export/ExportDialog'
 import { exportErrorMessage, exportProject } from '../export/exportProject'
+import { createProjectBackup } from './backup'
 import { CloudThemesList } from './CloudThemesList'
 import { duplicateProject } from './duplicate'
 import { ImportKthemeButton, KthemeDropZone } from './ImportKthemeButton'
@@ -87,6 +89,7 @@ function LocalProjects({ importer }: { importer: KthemeImport }) {
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [duplicating, setDuplicating] = useState<string | null>(null)
+  const [backingUp, setBackingUp] = useState<string | null>(null)
 
   // Copies linked to an account are listed only while that account is signed in.
   const items = status === 'loading' ? null : (all?.filter((p) => isVisibleLocally(p.cloudOwnerId)) ?? null)
@@ -139,6 +142,20 @@ function LocalProjects({ importer }: { importer: KthemeImport }) {
     }
   }
 
+  const backup = async (p: ProjectSummary) => {
+    if (backingUp) return
+    setBackingUp(p.id)
+    try {
+      const { blob, fileName } = await createProjectBackup(p.id)
+      downloadBlob(blob, fileName)
+      toast('백업 파일을 내려받았어요. 가져오기로 언제든 그대로 되살릴 수 있어요.')
+    } catch (e) {
+      toast(storageErrorMessage(e))
+    } finally {
+      setBackingUp(null)
+    }
+  }
+
   const confirmDelete = async () => {
     if (!deleting || deleteBusy) return
     setDeleteBusy(true)
@@ -163,7 +180,7 @@ function LocalProjects({ importer }: { importer: KthemeImport }) {
       ) : error ? (
         <ErrorState message={error} onRetry={() => void load()} />
       ) : items.length === 0 ? (
-        <EmptyState title="아직 만든 테마가 없어요." description="색상이나 이미지로 나만의 테마를 만들거나, 가지고 있는 .ktheme 파일을 가져와 이어서 꾸며 보세요.">
+        <EmptyState title="아직 만든 테마가 없어요." description="색상이나 이미지로 나만의 테마를 만들거나, 가지고 있는 .ktheme 파일이나 백업 파일을 가져와 이어서 꾸며 보세요.">
           <div className="flex flex-wrap justify-center gap-2">
             <Button onClick={() => navigate('#/editor/new')}>
               <Plus className="size-4" aria-hidden />새 테마 만들기
@@ -194,6 +211,14 @@ function LocalProjects({ importer }: { importer: KthemeImport }) {
                   busy={duplicating === p.id}
                   disabled={duplicating !== null}
                   onClick={() => void duplicate(p)}
+                />
+                <IconButton
+                  label={`${p.name} 백업 파일 저장`}
+                  icon={<Archive className="size-[18px]" />}
+                  variant="surface"
+                  busy={backingUp === p.id}
+                  disabled={backingUp !== null}
+                  onClick={() => void backup(p)}
                 />
                 <IconButton label={`${p.name} 내보내기`} icon={<Download className="size-[18px]" />} variant="surface" onClick={() => setExporting(p)} />
                 <IconButton

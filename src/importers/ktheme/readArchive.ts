@@ -50,28 +50,38 @@ export interface ThemeArchive {
 const IMAGE_NAME = /^(.+?)(?:@([23])x)?\.png$/i
 const SCALE_ORDER = [3, 2, 1]
 
-/** JSZip keeps the declared size internally; reading it lets oversized (zip bomb) entries be skipped before inflating. */
-const declaredSize = (entry: JSZip.JSZipObject) =>
-  (entry as unknown as { _data?: { uncompressedSize?: number } })._data?.uncompressedSize ?? 0
-
-/**
- * Opens a .ktheme (plain ZIP). Tolerates Finder leftovers (`__MACOSX/`, `.DS_Store`) and a
- * wrapping folder; images are read lazily so only the ones the CSS uses are inflated.
- */
-export async function readKthemeArchive(file: Blob): Promise<ThemeArchive> {
-  if (file.size > IMPORT_LIMITS.maxArchiveBytes) throw new KthemeImportError('too-large', 'Archive too large')
-  let zip: JSZip
+/** Parses a ZIP container (.ktheme or project backup); the caller checks the size limit for its kind first. */
+export async function openZip(file: Blob): Promise<JSZip> {
   try {
-    zip = await JSZip.loadAsync(new Uint8Array(await file.arrayBuffer()))
+    return await JSZip.loadAsync(new Uint8Array(await file.arrayBuffer()))
   } catch {
     throw new KthemeImportError('not-archive', 'Not a ZIP archive')
   }
+}
+
+/** File entries without Finder leftovers (`__MACOSX/`, `.DS_Store`, `._*`); throws past the entry limit. */
+export function zipEntries(zip: JSZip): JSZip.JSZipObject[] {
   const entries = Object.values(zip.files).filter((e) => {
     if (e.dir || e.name.includes('__MACOSX/')) return false
     const leaf = e.name.split('/').pop() ?? ''
     return leaf !== '.DS_Store' && !leaf.startsWith('._')
   })
   if (entries.length > IMPORT_LIMITS.maxEntries) throw new KthemeImportError('too-many-entries', `${entries.length} entries`)
+  return entries
+}
+
+/** JSZip keeps the declared size internally; reading it lets oversized (zip bomb) entries be skipped before inflating. */
+export const declaredSize = (entry: JSZip.JSZipObject) =>
+  (entry as unknown as { _data?: { uncompressedSize?: number } })._data?.uncompressedSize ?? 0
+
+/**
+ * Opens a .ktheme (plain ZIP). Tolerates Finder leftovers (`__MACOSX/`, `.DS_Store`) and a
+ * wrapping folder; images are read lazily so only the ones the CSS uses are inflated.
+ */
+export async function readKthemeArchive(file: Blob | JSZip): Promise<ThemeArchive> {
+  if (file instanceof Blob && file.size > IMPORT_LIMITS.maxArchiveBytes) throw new KthemeImportError('too-large', 'Archive too large')
+  const zip = file instanceof Blob ? await openZip(file) : file
+  const entries = zipEntries(zip)
 
   const cssEntry = entries
     .filter((e) => (e.name.split('/').pop() ?? '').toLowerCase() === CSS_FILE_NAME.toLowerCase())

@@ -1,3 +1,4 @@
+import type JSZip from 'jszip'
 import { getRepositories } from '@/app/services'
 import type { AssetRecord } from '@/assets/types'
 import { createNewProject, DEFAULT_THEME_NAME } from '@/domain/theme/defaults'
@@ -18,7 +19,7 @@ export interface KthemeImportResult {
  * 가져오기: a .ktheme becomes a new local project with its own images and a new .ktheme id,
  * so exporting it never replaces the original theme on the phone. Purely local.
  */
-export async function importKthemeFile(file: Blob, inspect: ImageInspector = browserInspector): Promise<KthemeImportResult> {
+export async function importKthemeFile(file: Blob | JSZip, inspect: ImageInspector = browserInspector): Promise<KthemeImportResult> {
   const imported = await mapThemeArchive(await readKthemeArchive(file), inspect)
   const now = Date.now()
   const project = createNewProject(now)
