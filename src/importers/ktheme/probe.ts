@@ -1,5 +1,6 @@
 import { rgbToHex } from '@/domain/theme/color'
 import type { HexColor } from '@/domain/theme/types'
+import { BrowserRasterizer, type Ctx, type Decoded } from '@/exporters/ktheme/raster'
 
 /** What the importer needs to know about one image, so tests can fake it without Canvas. */
 export interface ImageSummary {
@@ -50,3 +51,50 @@ export const browserProbe: ImageProbe = async (blob) => {
     bitmap.close()
   }
 }
+
+/** Draws what a generated resource would look like at `size`; `decode` opens other images it needs. */
+export type ExpectedDrawing = (ctx: Ctx, size: number, decode: (blob: Blob) => Promise<Decoded>) => void | Promise<void>
+
+/** Whether a square image is (close to) a drawing this app generates, e.g. the default profile. */
+export type DrawingMatcher = (blob: Blob, expected: ExpectedDrawing) => Promise<boolean>
+
+export interface ImageInspector {
+  summarize: ImageProbe
+  matches: DrawingMatcher
+}
+
+const COMPARE_SIZE = 128
+/** Mean per-channel difference (0–255) still counted as the same picture: covers resampling and PNG rounding. */
+const SAME_PICTURE = 6
+
+export function meanDifference(a: Uint8ClampedArray, b: Uint8ClampedArray): number {
+  let sum = 0
+  for (let i = 0; i < a.length; i++) sum += Math.abs(a[i] - b[i])
+  return a.length ? sum / a.length : Infinity
+}
+
+export const browserMatcher: DrawingMatcher = async (blob, expected) => {
+  const raster = new BrowserRasterizer()
+  const opened: Decoded[] = []
+  const decode = async (b: Blob) => {
+    const d = await raster.decode(b)
+    opened.push(d)
+    return d
+  }
+  try {
+    const image = await decode(blob)
+    if (Math.abs(image.width - image.height) > 1) return false
+    const actual = raster.surface(COMPARE_SIZE, COMPARE_SIZE)
+    actual.ctx.drawImage(image.source, 0, 0, COMPARE_SIZE, COMPARE_SIZE)
+    const drawn = raster.surface(COMPARE_SIZE, COMPARE_SIZE)
+    await expected(drawn.ctx, COMPARE_SIZE, decode)
+    const pixels = (s: typeof actual) => s.ctx.getImageData(0, 0, COMPARE_SIZE, COMPARE_SIZE).data
+    return meanDifference(pixels(actual), pixels(drawn)) <= SAME_PICTURE
+  } catch {
+    return false
+  } finally {
+    for (const d of opened) d.close()
+  }
+}
+
+export const browserInspector: ImageInspector = { summarize: browserProbe, matches: browserMatcher }

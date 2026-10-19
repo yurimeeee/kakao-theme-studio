@@ -1,5 +1,5 @@
 import { mix } from '@/domain/theme/color'
-import { resolveTheme, type ResolvedBubble, type ResolvedFill } from '@/domain/theme/resolve'
+import { defaultProfileColors, resolveTheme, type ResolvedBubble, type ResolvedFill } from '@/domain/theme/resolve'
 import { TAB_KEYS, type AssetId, type ThemeConfig } from '@/domain/theme/types'
 import { generatedBubbleGeometry, imageBubbleGeometry } from './bubbleGeometry'
 import {
@@ -136,8 +136,7 @@ export async function buildThemePackage(snapshot: ExportSnapshot, raster: Raster
     // Default profile (shown for friends without a photo).
     const profileId = theme.profileImageAssetId
     const profileImage = profileId ? await decode(profileId) : null
-    const profileBg = mix(theme.palette.background, theme.palette.text, 0.1)
-    const profileFg = mix(theme.palette.background, theme.palette.text, 0.35)
+    const { bg: profileBg, fg: profileFg } = defaultProfileColors(theme.palette)
     await emit(RESOURCES.profile.base, RESOURCES.profile.sizePt, (ctx, w, h) => {
       if (profileImage) {
         fillSolid(ctx, w, h, profileBg)

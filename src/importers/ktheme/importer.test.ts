@@ -6,21 +6,30 @@ import { resolveTheme } from '@/domain/theme/resolve'
 import { importKthemeFile } from '@/features/projects/importKtheme'
 import { fakePng } from '@/test/fakeRasterizer'
 import { mapThemeArchive } from './mapTheme'
-import { summarizePixels, type ImageProbe, type ImageSummary } from './probe'
+import { meanDifference, summarizePixels, type ImageInspector, type ImageSummary } from './probe'
 import { KthemeImportError, readKthemeArchive } from './readArchive'
 
-type Pixels = Partial<Pick<ImageSummary, 'solid' | 'cornerClear'>>
+/** `generated`: the fake matcher treats the image as this app's own drawing (default profile, theme icon). */
+type Pixels = Partial<Pick<ImageSummary, 'solid' | 'cornerClear'>> & { generated?: boolean }
 
 /** Fake PNG (IHDR size) carrying its pixel summary after the header, so tests need no Canvas. */
 function png(width: number, height: number, pixels: Pixels = {}, tag = ''): Blob {
   return new Blob([fakePng(width, height), JSON.stringify({ ...pixels, tag })], { type: 'image/png' })
 }
 
-const fakeProbe: ImageProbe = async (blob) => {
+async function pixelsOf(blob: Blob) {
   const bytes = new Uint8Array(await blob.arrayBuffer())
   const view = new DataView(bytes.buffer)
   const extra = JSON.parse(new TextDecoder().decode(bytes.slice(33)) || '{}') as Pixels
-  return { width: view.getUint32(16), height: view.getUint32(20), solid: extra.solid ?? null, cornerClear: extra.cornerClear ?? 0 }
+  return { width: view.getUint32(16), height: view.getUint32(20), extra }
+}
+
+const fakeInspector: ImageInspector = {
+  summarize: async (blob) => {
+    const { width, height, extra } = await pixelsOf(blob)
+    return { width, height, solid: extra.solid ?? null, cornerClear: extra.cornerClear ?? 0 }
+  },
+  matches: async (blob) => (await pixelsOf(blob)).extra.generated === true,
 }
 
 async function archive(css: string, images: Record<string, Blob>, prefix = '') {
@@ -98,7 +107,7 @@ const REFERENCE_IMAGES = {
 describe('mapThemeArchive', () => {
   it('maps a reference-style theme onto the editor model', async () => {
     const file = await archive(REFERENCE_STYLE_CSS, REFERENCE_IMAGES)
-    const { name, config, images, notes } = await mapThemeArchive(await readKthemeArchive(file), fakeProbe)
+    const { name, config, images, notes } = await mapThemeArchive(await readKthemeArchive(file), fakeInspector)
 
     expect(name).toBe('봄 테마')
     expect(config.palette).toEqual({ background: '#fff0f5', text: '#331122', subText: '#996677', accent: '#ff8fab' })
@@ -148,7 +157,16 @@ describe('mapThemeArchive', () => {
       BackgroundStyle-Passcode { background-color: #101010; }
       LabelStyle-PasscodeTitle { -ios-text-color: #222224; }
     `
-    const { config } = await mapThemeArchive(await readKthemeArchive(await archive(css, { 'b@2x.png': png(60, 50, {}, 'b') })), fakeProbe)
+    const files = {
+      'b@2x.png': png(60, 50, {}, 'b'),
+      'profile@3x.png': png(300, 300, { generated: true }),
+      'commonIcoTheme.png': png(200, 200, { generated: true }, 'icon'),
+    }
+    const { config, images } = await mapThemeArchive(await readKthemeArchive(await archive(css + "DefaultProfileStyle { -ios-profile-images: 'profile.png'; }", files)), fakeInspector)
+    // This app's own silhouette and theme icon stay generated (they follow color edits) and are not stored.
+    expect(config.profile.mode).toBe('default')
+    expect(config.themeIcon.mode).toBe('default')
+    expect(images.size).toBe(1)
     expect(config.bubbles.send.advanced).toMatchObject({ imageSize: 150, stretch: { x: 10, y: 12 }, groupImageAssetId: null })
     expect(config.bubbles.send.textColor).toBe('#0000ff')
     expect(config.headerInput).toMatchObject({ mode: 'color', headerTextColor: '#ff0000', inputBackground: '#ffffff' })
@@ -157,7 +175,7 @@ describe('mapThemeArchive', () => {
   })
 
   it('leaves a default theme untouched when the file has nothing to say', async () => {
-    const { config, images, notes } = await mapThemeArchive(await readKthemeArchive(await archive('ManifestStyle { -kakaotalk-theme-name: "x"; }', {})), fakeProbe)
+    const { config, images, notes } = await mapThemeArchive(await readKthemeArchive(await archive('ManifestStyle { -kakaotalk-theme-name: "x"; }', {})), fakeInspector)
     expect(config).toEqual(createDefaultConfig())
     expect(images.size).toBe(0)
     expect(notes).toEqual([])
@@ -201,10 +219,16 @@ describe('summarizePixels', () => {
   })
 })
 
+describe('meanDifference', () => {
+  it('averages per-channel differences', () => {
+    expect(meanDifference(new Uint8ClampedArray([0, 10, 20, 255]), new Uint8ClampedArray([4, 10, 16, 255]))).toBe(2)
+  })
+})
+
 describe('importKthemeFile', () => {
   it('stores a new local project with its images and a fresh .ktheme id', async () => {
     const file = await archive(REFERENCE_STYLE_CSS, REFERENCE_IMAGES)
-    const result = await importKthemeFile(file, fakeProbe)
+    const result = await importKthemeFile(file, fakeInspector)
     const { projects, assets } = getRepositories()
     const project = (await projects.get(result.projectId))!
     expect(project.name).toBe('봄 테마')

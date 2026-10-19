@@ -5,11 +5,12 @@ import { normalizeHex } from '@/domain/theme/color'
 import { BUBBLE_IMAGE_SIZE_MAX, BUBBLE_RADIUS_MAX, centerFocus, createDefaultConfig } from '@/domain/theme/defaults'
 import { createAssetId } from '@/domain/theme/ids'
 import { collectAssetIds } from '@/domain/theme/normalize'
-import { resolveTheme } from '@/domain/theme/resolve'
+import { defaultProfileColors, resolveTheme } from '@/domain/theme/resolve'
 import { TAB_KEYS, type AssetId, type BubbleImageLayout, type EdgeInsets, type FillSetting, type HexColor, type TabKey, type ThemeConfig } from '@/domain/theme/types'
 import { TAB_CSS_KEYS } from '@/exporters/ktheme/catalog'
 import { parseThemeCss } from '@/exporters/ktheme/css'
-import type { ImageProbe, ImageSummary } from './probe'
+import { drawDefaultProfile, drawThemeIcon } from '@/exporters/ktheme/draw'
+import type { ImageInspector, ImageSummary } from './probe'
 import type { ThemeArchive } from './readArchive'
 
 export interface ImportedImage {
@@ -60,7 +61,7 @@ const sameColor = (a: HexColor | null, b: HexColor) => a === null || a === b
  * stay in `default` mode when the file matches the derivation, so re-importing a theme made
  * here keeps it editable instead of freezing every color.
  */
-export async function mapThemeArchive(archive: ThemeArchive, probe: ImageProbe): Promise<ImportedTheme> {
+export async function mapThemeArchive(archive: ThemeArchive, inspect: ImageInspector): Promise<ImportedTheme> {
   const parsed = parseThemeCss(archive.css)
   const raw = (selector: string, prop: string) => parsed.get(selector)?.get(prop) ?? null
   const colorOf = (selector: string, prop: string) => {
@@ -92,7 +93,7 @@ export async function mapThemeArchive(archive: ThemeArchive, probe: ImageProbe):
     if (known) return { id: known, summary: summaries.get(known)! }
     let summary: ImageSummary
     try {
-      summary = await probe(blob)
+      summary = await inspect.summarize(blob)
     } catch {
       return null
     }
@@ -207,13 +208,26 @@ export async function mapThemeArchive(archive: ThemeArchive, probe: ImageProbe):
   }
 
   // 기본 프로필 (the property may list several images; the app uses the first).
+  // A file made here carries the generated silhouette; it stays `default` so it keeps following 전체 색상.
   const profile = await load(refOf('DefaultProfileStyle', '-ios-profile-images'))
-  if (profile) Object.assign(config.profile, { mode: 'image', imageAssetId: profile.id, focus: centerFocus() })
+  if (profile) {
+    const { bg, fg } = defaultProfileColors(config.palette)
+    const generated = await inspect.matches(images.get(profile.id)!.blob, (ctx, size) => drawDefaultProfile(ctx, size, bg, fg))
+    if (!generated) Object.assign(config.profile, { mode: 'image', imageAssetId: profile.id, focus: centerFocus() })
+  }
 
-  // 테마 아이콘
+  // 테마 아이콘: likewise kept generated when it is the drawing this app makes from the theme colors.
   const iconBlob = await archive.themeIcon()
   const icon = iconBlob && (await addImage(iconBlob, 'commonIcoTheme.png'))
-  if (icon) Object.assign(config.themeIcon, { mode: 'image', imageAssetId: icon.id })
+  if (icon) {
+    const t = derived()
+    const room = t.chatroom.background
+    const roomImage = room.imageAssetId ? images.get(room.imageAssetId)!.blob : null
+    const generated = await inspect.matches(iconBlob, async (ctx, size, decode) =>
+      drawThemeIcon(ctx, size, { background: room.color, receive: t.bubbles.receive.color, send: t.bubbles.send.color }, roomImage && (await decode(roomImage)), null, room.focus),
+    )
+    if (!generated) Object.assign(config.themeIcon, { mode: 'image', imageAssetId: icon.id })
+  }
 
   // 탭
   {

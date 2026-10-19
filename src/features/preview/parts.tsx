@@ -1,8 +1,7 @@
 import { BatteryFull, Compass, MessageCircle, MoreHorizontal, ShoppingBag, Signal, UserRound, Wifi } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
 import { useAssetSize, useAssetUrl } from '@/assets/useAssetUrl'
-import { mix } from '@/domain/theme/color'
-import type { ResolvedBubble, ResolvedTheme } from '@/domain/theme/resolve'
+import { defaultProfileColors, type ResolvedBubble, type ResolvedTheme } from '@/domain/theme/resolve'
 import type { ElementKey, HexColor, TabKey } from '@/domain/theme/types'
 import { effectiveRadius, imageBubbleGeometry, pxPerPt } from '@/exporters/ktheme/bubbleGeometry'
 import { focusedImageStyle } from './focus'
@@ -28,8 +27,7 @@ export function Avatar({ theme, photo, size = 40 }: { theme: ResolvedTheme; phot
   if (photo) {
     return <PhotoPlaceholder variant={photo} size={size} radius={radius} />
   }
-  const bg = mix(theme.palette.background, theme.palette.text, 0.1)
-  const fg = mix(theme.palette.background, theme.palette.text, 0.35)
+  const { bg, fg } = defaultProfileColors(theme.palette)
   return (
     <span
       className="relative flex shrink-0 items-center justify-center overflow-hidden"

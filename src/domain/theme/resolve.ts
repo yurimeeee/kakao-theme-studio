@@ -119,6 +119,11 @@ function resolveBubble(b: BubbleSetting, defaultColor: HexColor, paletteText: He
   }
 }
 
+/** Colors of the built-in default profile (preview, export, and import's detection of it). */
+export function defaultProfileColors(palette: ThemeConfig['palette']): { bg: HexColor; fg: HexColor } {
+  return { bg: mix(palette.background, palette.text, 0.1), fg: mix(palette.background, palette.text, 0.35) }
+}
+
 const resolvedCache = new WeakMap<ThemeConfig, ResolvedTheme>()
 
 /**

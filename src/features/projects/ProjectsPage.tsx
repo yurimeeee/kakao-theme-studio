@@ -19,7 +19,8 @@ import { ExportDialog } from '../export/ExportDialog'
 import { exportErrorMessage, exportProject } from '../export/exportProject'
 import { CloudThemesList } from './CloudThemesList'
 import { duplicateProject } from './duplicate'
-import { ImportKthemeButton } from './ImportKthemeButton'
+import { ImportKthemeButton, KthemeDropZone } from './ImportKthemeButton'
+import { useKthemeImport, type KthemeImport } from './useKthemeImport'
 
 function Thumb({ blob }: { blob: Blob | null }) {
   return <ThumbFrame url={useBlobUrl(blob)} />
@@ -29,8 +30,11 @@ export function ProjectsPage({ tab }: { tab: 'local' | 'cloud' }) {
   const status = useSession((s) => s.status)
   const uid = useSession((s) => s.user?.uid ?? null)
   const signedIn = status === 'signed-in'
+  const importer = useKthemeImport()
   return (
     <div className="flex flex-col gap-8">
+      {importer.element}
+      <KthemeDropZone importer={importer} />
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-[28px] font-bold tracking-[-0.01em] lg:text-[32px]">내 작업</h1>
@@ -39,7 +43,7 @@ export function ProjectsPage({ tab }: { tab: 'local' | 'cloud' }) {
           </p>
         </div>
         <div className="flex shrink-0 gap-2">
-          <ImportKthemeButton />
+          <ImportKthemeButton importer={importer} />
           <Button onClick={() => navigate('#/editor/new')} className="hidden sm:inline-flex">
             <Plus className="size-4" aria-hidden />새 테마
           </Button>
@@ -59,7 +63,7 @@ export function ProjectsPage({ tab }: { tab: 'local' | 'cloud' }) {
         />
       )}
       {tab === 'local' || status === 'unavailable' ? (
-        <LocalProjects />
+        <LocalProjects importer={importer} />
       ) : signedIn ? (
         <CloudThemesList key={uid} />
       ) : status === 'loading' ? (
@@ -73,7 +77,7 @@ export function ProjectsPage({ tab }: { tab: 'local' | 'cloud' }) {
   )
 }
 
-function LocalProjects() {
+function LocalProjects({ importer }: { importer: KthemeImport }) {
   const status = useSession((s) => s.status)
   const uid = useSession((s) => s.user?.uid ?? null)
   const [all, setItems] = useState<ProjectSummary[] | null>(null)
@@ -159,10 +163,13 @@ function LocalProjects() {
       ) : error ? (
         <ErrorState message={error} onRetry={() => void load()} />
       ) : items.length === 0 ? (
-        <EmptyState title="아직 만든 테마가 없어요." description="색상이나 이미지로 나만의 테마를 만들어 보세요.">
-          <Button onClick={() => navigate('#/editor/new')}>
-            <Plus className="size-4" aria-hidden />새 테마 만들기
-          </Button>
+        <EmptyState title="아직 만든 테마가 없어요." description="색상이나 이미지로 나만의 테마를 만들거나, 가지고 있는 .ktheme 파일을 가져와 이어서 꾸며 보세요.">
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button onClick={() => navigate('#/editor/new')}>
+              <Plus className="size-4" aria-hidden />새 테마 만들기
+            </Button>
+            <ImportKthemeButton importer={importer} />
+          </div>
         </EmptyState>
       ) : (
         <ul className="mx-auto flex w-full max-w-[780px] flex-col gap-3" aria-label="테마 목록">
