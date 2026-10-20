@@ -20,6 +20,7 @@ import { BubblePanel } from './BubblePanel'
 import { modeOptions } from './modes'
 import { SchemeFromImage } from './SchemeFromImage'
 import { SchemeFromSeed } from './SchemeFromSeed'
+import { SchemePresets } from './SchemePresets'
 import { FillEditor } from './shared'
 
 const useConfig = () => useEditor((s) => s.project!.config)
@@ -47,6 +48,9 @@ function PalettePanel() {
   )
   return (
     <div className="flex flex-col gap-6">
+      <FieldGroup title="추천 조합" description="골라서 바로 적용해요. 올린 이미지와 말풍선 모양은 그대로예요.">
+        <SchemePresets />
+      </FieldGroup>
       <FieldGroup title="색 하나로 만들기" description="대표색을 고르면 나머지 색을 어울리게 정해요. 글자는 읽기 쉬운 대비로 맞춰요.">
         <SchemeFromSeed />
       </FieldGroup>

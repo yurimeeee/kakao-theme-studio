@@ -22,6 +22,7 @@ import { createProjectBackup } from './backup'
 import { CloudThemesList } from './CloudThemesList'
 import { duplicateProject } from './duplicate'
 import { ImportKthemeButton, KthemeDropZone } from './ImportKthemeButton'
+import { NewThemeDialog } from './NewThemeDialog'
 import { useKthemeImport, type KthemeImport } from './useKthemeImport'
 
 function Thumb({ blob }: { blob: Blob | null }) {
@@ -33,9 +34,12 @@ export function ProjectsPage({ tab }: { tab: 'local' | 'cloud' }) {
   const uid = useSession((s) => s.user?.uid ?? null)
   const signedIn = status === 'signed-in'
   const importer = useKthemeImport()
+  const [picking, setPicking] = useState(false)
+  const startNew = () => setPicking(true)
   return (
     <div className="flex flex-col gap-8">
       {importer.element}
+      <NewThemeDialog open={picking} onOpenChange={setPicking} />
       <KthemeDropZone importer={importer} />
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -46,7 +50,7 @@ export function ProjectsPage({ tab }: { tab: 'local' | 'cloud' }) {
         </div>
         <div className="flex shrink-0 gap-2">
           <ImportKthemeButton importer={importer} />
-          <Button onClick={() => navigate('#/editor/new')} className="hidden sm:inline-flex">
+          <Button onClick={startNew} className="hidden sm:inline-flex">
             <Plus className="size-4" aria-hidden />새 테마
           </Button>
         </div>
@@ -65,7 +69,7 @@ export function ProjectsPage({ tab }: { tab: 'local' | 'cloud' }) {
         />
       )}
       {tab === 'local' || status === 'unavailable' ? (
-        <LocalProjects importer={importer} />
+        <LocalProjects importer={importer} onNew={startNew} />
       ) : signedIn ? (
         <CloudThemesList key={uid} />
       ) : status === 'loading' ? (
@@ -79,7 +83,7 @@ export function ProjectsPage({ tab }: { tab: 'local' | 'cloud' }) {
   )
 }
 
-function LocalProjects({ importer }: { importer: KthemeImport }) {
+function LocalProjects({ importer, onNew }: { importer: KthemeImport; onNew: () => void }) {
   const status = useSession((s) => s.status)
   const uid = useSession((s) => s.user?.uid ?? null)
   const [all, setItems] = useState<ProjectSummary[] | null>(null)
@@ -182,7 +186,7 @@ function LocalProjects({ importer }: { importer: KthemeImport }) {
       ) : items.length === 0 ? (
         <EmptyState title="아직 만든 테마가 없어요." description="색상이나 이미지로 나만의 테마를 만들거나, 가지고 있는 .ktheme 파일이나 백업 파일을 가져와 이어서 꾸며 보세요.">
           <div className="flex flex-wrap justify-center gap-2">
-            <Button onClick={() => navigate('#/editor/new')}>
+            <Button onClick={onNew}>
               <Plus className="size-4" aria-hidden />새 테마 만들기
             </Button>
             <ImportKthemeButton importer={importer} />
@@ -244,7 +248,7 @@ function LocalProjects({ importer }: { importer: KthemeImport }) {
 
       {items && items.length > 0 && (
         <div className="flex justify-center">
-          <IconButton label="새 테마" icon={<Plus className="size-6" />} variant="solid" size="lg" className="size-14" onClick={() => navigate('#/editor/new')} tooltipSide="top" />
+          <IconButton label="새 테마" icon={<Plus className="size-6" />} variant="solid" size="lg" className="size-14" onClick={onNew} tooltipSide="top" />
         </div>
       )}
 

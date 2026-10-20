@@ -42,6 +42,7 @@ test('내 작업: 여러 프로젝트를 격리해서 수정·삭제한다', asy
   await expect(items).toHaveCount(1)
   await expect(items.first()).toContainText('두 번째')
   expect(await countRows(page, 'assets', firstId)).toBe(0)
+  // Only the template project: the untouched editor from freshApp is never stored.
   expect(await countRows(page, 'projects')).toBe(1)
 
   await page.getByRole('button', { name: '두 번째 삭제' }).click()
@@ -77,4 +78,23 @@ test('내 작업: 사본을 만들면 이미지까지 따로 보관되고 원본
   await waitSaved(page)
   expect(await countRows(page, 'assets', copyId)).toBe(0)
   expect(await countRows(page, 'assets', originalId)).toBe(1)
+})
+
+test('내 작업: 새 테마를 시작 템플릿으로 만든다', async ({ page }) => {
+  await freshApp(page)
+  await page.getByRole('link', { name: '내 작업' }).click()
+  await page.getByRole('button', { name: '새 테마', exact: true }).first().click()
+  const dialog = page.getByRole('dialog', { name: '새 테마 만들기' })
+  await expect(dialog.getByRole('list', { name: '시작 템플릿' }).getByRole('button')).toHaveCount(9)
+  await dialog.getByRole('button', { name: '모노 다크' }).click()
+  await expect(page).toHaveURL(/#\/editor\/lp_/)
+
+  const panel = page.getByRole('complementary', { name: /속성/ })
+  await page.getByRole('button', { name: '전체 색상' }).click()
+  await expect(panel.getByLabel('주요 배경', { exact: true })).toHaveValue('#121212')
+  await expect(panel.getByRole('list', { name: '추천 조합' }).getByRole('button', { name: '모노 다크' })).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('button', { name: '보내는 말풍선', exact: true }).click()
+  await expect(panel.getByRole('radio', { name: '직각' })).toBeChecked()
+  // Only the template project: the untouched editor from freshApp is never stored.
+  expect(await countRows(page, 'projects')).toBe(1)
 })

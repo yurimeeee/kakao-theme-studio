@@ -306,6 +306,22 @@ test('대표색 하나로 전체 색상을 만들고 개별 색상도 따르게 
   await expect(panel.getByLabel('주요 배경', { exact: true })).toHaveValue('#ffffff')
 })
 
+test('추천 조합을 골라 전체 색상을 바꾸고 실행 취소한다', async ({ page }) => {
+  await freshApp(page)
+  const panel = page.getByRole('complementary', { name: /속성/ })
+  await page.getByRole('button', { name: '전체 색상' }).click()
+  const presets = panel.getByRole('list', { name: '추천 조합' })
+  await expect(presets.getByRole('button', { name: '기본' })).toHaveAttribute('aria-pressed', 'true')
+  await presets.getByRole('button', { name: '밤하늘' }).click()
+  await expect(page.getByText("'밤하늘' 조합을 적용했어요.", { exact: false })).toBeVisible()
+  await expect(presets.getByRole('button', { name: '밤하늘' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(panel.getByLabel('주요 배경', { exact: true })).not.toHaveValue('#ffffff')
+  await expect(panel.getByTestId('contrast-warning')).toHaveCount(0)
+
+  await page.getByRole('button', { name: '실행 취소' }).click()
+  await expect(panel.getByLabel('주요 배경', { exact: true })).toHaveValue('#ffffff')
+})
+
 test('? 키나 버튼으로 단축키 도움말을 연다', async ({ page }) => {
   await freshApp(page)
   const help = page.getByRole('dialog', { name: '단축키와 조작법' })
