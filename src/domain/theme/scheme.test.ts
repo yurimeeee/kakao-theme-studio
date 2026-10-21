@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { contrastRatio, hexToRgb } from './color'
+import { contrastRatio, hexToRgb, relativeLuminance } from './color'
 import { createDefaultConfig } from './defaults'
+import { presetConfig, THEME_PRESETS } from './presets'
 import { resolveTheme } from './resolve'
-import { applyScheme, hexToHsl, hslToHex, imageColors, schemeFromSeed, type PixelData } from './scheme'
+import { applyScheme, hexToHsl, hslToHex, imageColors, invertPalette, paletteTone, schemeFromSeed, type PixelData } from './scheme'
 
 /** An image made of solid color runs: [hex, pixel count][]. */
 function pixels(runs: [string, number][]): PixelData {
@@ -110,5 +111,34 @@ describe('applyScheme', () => {
     const theme = resolveTheme(c)
     expect(theme.bubbles.send.color).toBe(palette.accent)
     expect(contrastRatio(theme.bubbles.send.textColor, theme.bubbles.send.color)).toBeGreaterThanOrEqual(4.5)
+  })
+})
+
+describe('invertPalette (다크/라이트 사본)', () => {
+  it.each(THEME_PRESETS)('$name flips tone and stays readable', (preset) => {
+    const inverted = invertPalette(preset.palette)
+    expect(paletteTone(inverted)).not.toBe(paletteTone(preset.palette))
+    expect(contrastRatio(inverted.text, inverted.background)).toBeGreaterThanOrEqual(4.5)
+    expect(contrastRatio(inverted.subText, inverted.background)).toBeGreaterThanOrEqual(3)
+    expect(contrastRatio(inverted.accent, inverted.background)).toBeGreaterThanOrEqual(1.3)
+    const send = resolveTheme(presetConfig({ ...preset, palette: inverted })).bubbles.send
+    expect(contrastRatio(send.textColor, send.color)).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('keeps a colorful accent and turns black and white around', () => {
+    const yellow = THEME_PRESETS.find((p) => p.id === 'kakao')!.palette
+    expect(invertPalette(yellow).accent).toBe(yellow.accent)
+    const mono = invertPalette(THEME_PRESETS.find((p) => p.id === 'mono')!.palette)
+    expect(relativeLuminance(mono.accent)).toBeGreaterThan(0.7)
+    expect(hexToHsl(mono.background)[1]).toBe(0)
+    // A soft near-black, not pure black.
+    expect(mono.background).not.toBe('#000000')
+  })
+
+  it('comes back to the same tone after two flips', () => {
+    const night = THEME_PRESETS.find((p) => p.id === 'night')!.palette
+    const twice = invertPalette(invertPalette(night))
+    expect(paletteTone(twice)).toBe('dark')
+    expect(Math.abs(hexToHsl(twice.background)[0] - hexToHsl(night.background)[0])).toBeLessThan(10)
   })
 })

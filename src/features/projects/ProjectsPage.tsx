@@ -1,4 +1,4 @@
-import { Archive, Cloud, CopyPlus, Download, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Archive, Cloud, CopyPlus, Download, Pencil, Plus, SunMoon, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { cloudProjectsHref, editorHref, navigate, projectsHref } from '@/app/router'
 import { getRepositories } from '@/app/services'
@@ -20,7 +20,7 @@ import { ExportDialog } from '../export/ExportDialog'
 import { exportErrorMessage, exportProject } from '../export/exportProject'
 import { createProjectBackup } from './backup'
 import { CloudThemesList } from './CloudThemesList'
-import { duplicateProject } from './duplicate'
+import { createTonePair, duplicateProject } from './duplicate'
 import { ImportKthemeButton, KthemeDropZone } from './ImportKthemeButton'
 import { NewThemeDialog } from './NewThemeDialog'
 import { useKthemeImport, type KthemeImport } from './useKthemeImport'
@@ -50,7 +50,7 @@ export function ProjectsPage({ tab }: { tab: 'local' | 'cloud' }) {
         </div>
         <div className="flex shrink-0 gap-2">
           <ImportKthemeButton importer={importer} />
-          <Button onClick={startNew} className="hidden sm:inline-flex">
+          <Button onClick={startNew} className="max-sm:hidden">
             <Plus className="size-4" aria-hidden />새 테마
           </Button>
         </div>
@@ -92,6 +92,7 @@ function LocalProjects({ importer, onNew }: { importer: KthemeImport; onNew: () 
   const [deleting, setDeleting] = useState<ProjectSummary | null>(null)
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  /** The copy being made: `${id}:copy` or `${id}:pair`; one at a time. */
   const [duplicating, setDuplicating] = useState<string | null>(null)
   const [backingUp, setBackingUp] = useState<string | null>(null)
 
@@ -134,10 +135,24 @@ function LocalProjects({ importer, onNew }: { importer: KthemeImport; onNew: () 
 
   const duplicate = async (p: ProjectSummary) => {
     if (duplicating) return
-    setDuplicating(p.id)
+    setDuplicating(`${p.id}:copy`)
     try {
       await duplicateProject(p.id, p.thumbnail)
       toast('사본을 만들었어요. 원본은 그대로예요.')
+      await load()
+    } catch (e) {
+      toast(storageErrorMessage(e))
+    } finally {
+      setDuplicating(null)
+    }
+  }
+
+  const pair = async (p: ProjectSummary) => {
+    if (duplicating) return
+    setDuplicating(`${p.id}:pair`)
+    try {
+      const { tone } = await createTonePair(p.id)
+      toast(`${tone === 'dark' ? '다크' : '라이트'} 사본을 만들었어요. 원본은 그대로예요.`)
       await load()
     } catch (e) {
       toast(storageErrorMessage(e))
@@ -212,9 +227,17 @@ function LocalProjects({ importer, onNew }: { importer: KthemeImport; onNew: () 
                   label={`${p.name} 사본 만들기`}
                   icon={<CopyPlus className="size-[18px]" />}
                   variant="surface"
-                  busy={duplicating === p.id}
+                  busy={duplicating === `${p.id}:copy`}
                   disabled={duplicating !== null}
                   onClick={() => void duplicate(p)}
+                />
+                <IconButton
+                  label={`${p.name} 다크·라이트 사본 만들기`}
+                  icon={<SunMoon className="size-[18px]" />}
+                  variant="surface"
+                  busy={duplicating === `${p.id}:pair`}
+                  disabled={duplicating !== null}
+                  onClick={() => void pair(p)}
                 />
                 <IconButton
                   label={`${p.name} 백업 파일 저장`}

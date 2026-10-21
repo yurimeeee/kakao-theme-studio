@@ -98,3 +98,25 @@ test('내 작업: 새 테마를 시작 템플릿으로 만든다', async ({ page
   // Only the template project: the untouched editor from freshApp is never stored.
   expect(await countRows(page, 'projects')).toBe(1)
 })
+
+test('내 작업: 다크 사본을 만들고, 그 사본에서 다시 라이트 사본을 만든다', async ({ page }) => {
+  await freshApp(page)
+  await saveWithName(page, '낮')
+  await page.getByRole('link', { name: '내 작업' }).click()
+  await page.getByRole('button', { name: '낮 다크·라이트 사본 만들기' }).click()
+  await expect(page.getByText('다크 사본을 만들었어요.', { exact: false })).toBeVisible()
+  const items = page.getByTestId('project-item')
+  await expect(items).toHaveCount(2)
+
+  await page.getByRole('button', { name: '낮 다크 편집' }).click()
+  const panel = page.getByRole('complementary', { name: /속성/ })
+  await page.getByRole('button', { name: '전체 색상' }).click()
+  const background = await panel.getByLabel('주요 배경', { exact: true }).inputValue()
+  expect(parseInt(background.slice(1, 3), 16)).toBeLessThan(60)
+  await expect(panel.getByTestId('contrast-warning')).toHaveCount(0)
+
+  await page.getByRole('link', { name: '내 작업' }).click()
+  await page.getByRole('button', { name: '낮 다크 다크·라이트 사본 만들기' }).click()
+  await expect(page.getByText('라이트 사본을 만들었어요.', { exact: false })).toBeVisible()
+  await expect(items.filter({ hasText: '낮 다크 라이트' })).toHaveCount(1)
+})

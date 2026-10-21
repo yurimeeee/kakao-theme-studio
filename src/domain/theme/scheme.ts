@@ -62,6 +62,32 @@ export function schemeFromSeed(seed: HexColor, tone: SchemeTone, backdrop?: HexC
   return { background, text, subText, accent }
 }
 
+/** Light ↔ dark counterpart of the tone a palette is in (by its background). */
+export function paletteTone(palette: PaletteSetting): SchemeTone {
+  return relativeLuminance(palette.background) < 0.2 ? 'dark' : 'light'
+}
+
+/**
+ * The same palette in the opposite tone, for a 다크/라이트 pair. Background and text swap
+ * lightness (hue kept; the darkest background stays a soft near-black, not #000). A colorful
+ * 강조색 keeps its color, since vivid bubbles work on both; a gray one flips with the text, so
+ * a black-and-white theme stays black-and-white. Readability is enforced as in schemeFromSeed.
+ */
+export function invertPalette(palette: PaletteSetting): PaletteSetting {
+  const toDark = paletteTone(palette) === 'light'
+  const flip = (hex: HexColor, lo: number, hi: number, maxS = 1) => {
+    const [h, s, l] = hexToHsl(hex)
+    return hslToHex(h, Math.min(s, maxS), clamp(1 - l, lo, hi))
+  }
+  // Same saturation caps as schemeFromSeed's backgrounds.
+  const background = toDark ? flip(palette.background, 0.08, 0.2, 0.3) : flip(palette.background, 0.94, 0.98, 0.45)
+  const text = separate(flip(palette.text, 0, 1), background, 4.5)
+  const subText = separate(flip(palette.subText, 0, 1), background, 3)
+  const [, s] = hexToHsl(palette.accent)
+  const accent = s < 0.15 ? flip(palette.accent, 0, 1) : palette.accent
+  return { background, text, subText, accent: separate(bubbleSafe(accent, text), background, 1.3) }
+}
+
 /**
  * Mid tones read badly with dark and light text alike; move to the nearest lightness where the
  * send bubble's automatic text color (same rule as resolveTheme) reaches 4.5:1.

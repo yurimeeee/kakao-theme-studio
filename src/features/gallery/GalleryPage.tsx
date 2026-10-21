@@ -167,7 +167,7 @@ export function GalleryPage() {
                     label={`${t.name} 링크 복사`}
                     icon={<Share2 className="size-[18px]" />}
                     variant="surface"
-                    className="hidden sm:inline-flex"
+                    className="max-sm:hidden"
                     onClick={() => void copyText(shareUrl(t.id)).then((ok) => toast(ok ? '링크를 복사했어요.' : '링크를 복사하지 못했어요.'))}
                   />
                 </div>
