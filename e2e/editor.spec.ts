@@ -322,6 +322,50 @@ test('추천 조합을 골라 전체 색상을 바꾸고 실행 취소한다', a
   await expect(panel.getByLabel('주요 배경', { exact: true })).toHaveValue('#ffffff')
 })
 
+test('고른 색은 다른 색 칸의 최근 색에 남고, 새로고침해도 유지된다', async ({ page }) => {
+  await freshApp(page)
+  const panel = page.getByRole('complementary', { name: /속성/ })
+  await page.getByRole('button', { name: '전체 색상' }).click()
+  await expect(panel.getByRole('group', { name: '강조색 최근 사용한 색' })).toHaveCount(0)
+  await panel.getByRole('group', { name: '주요 배경 추천 색상' }).getByRole('button', { name: '#F1F1F3 선택' }).click()
+  const hex = panel.getByLabel('강조색', { exact: true })
+  await hex.fill('#3366cc')
+
+  const recent = panel.getByRole('group', { name: '주요 글자 최근 사용한 색' }).getByRole('button')
+  await expect(recent).toHaveText(['', ''])
+  await expect(recent.first()).toHaveAccessibleName('#3366CC 선택')
+  await expect(recent.nth(1)).toHaveAccessibleName('#F1F1F3 선택')
+
+  await page.reload()
+  await page.getByRole('button', { name: '전체 색상' }).click()
+  await panel.getByRole('group', { name: '주요 글자 최근 사용한 색' }).getByRole('button', { name: '#3366CC 선택' }).click()
+  await expect(panel.getByLabel('주요 글자', { exact: true })).toHaveValue('#3366cc')
+})
+
+test('스포이드로 화면의 색을 집는다', async ({ page }) => {
+  // Headless Chromium cannot show the real picker; stand in for it.
+  await page.addInitScript(() => {
+    ;(window as unknown as { EyeDropper: unknown }).EyeDropper = class {
+      open() {
+        return Promise.resolve({ sRGBHex: '#a1b2c3' })
+      }
+    }
+  })
+  await freshApp(page)
+  const panel = page.getByRole('complementary', { name: /속성/ })
+  await page.getByRole('button', { name: '전체 색상' }).click()
+  await panel.getByRole('button', { name: '강조색 화면에서 색 집기' }).click()
+  await expect(panel.getByLabel('강조색', { exact: true })).toHaveValue('#a1b2c3')
+  await expect(panel.getByRole('group', { name: '강조색 최근 사용한 색' }).getByRole('button', { name: '#A1B2C3 선택' })).toBeVisible()
+})
+
+test('스포이드를 지원하지 않는 브라우저에서는 버튼을 숨긴다', async ({ page }) => {
+  await page.addInitScript(() => delete (window as unknown as { EyeDropper?: unknown }).EyeDropper)
+  await freshApp(page)
+  await page.getByRole('button', { name: '전체 색상' }).click()
+  await expect(page.getByRole('button', { name: /화면에서 색 집기/ })).toHaveCount(0)
+})
+
 test('? 키나 버튼으로 단축키 도움말을 연다', async ({ page }) => {
   await freshApp(page)
   const help = page.getByRole('dialog', { name: '단축키와 조작법' })

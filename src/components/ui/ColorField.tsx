@@ -1,7 +1,17 @@
-import { useId, useState } from 'react'
+import { Pipette } from 'lucide-react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { contrastRatio, normalizeHex, readableOn } from '@/domain/theme/color'
 import type { HexColor } from '@/domain/theme/types'
 import { cn } from './cn'
+import { IconButton } from './IconButton'
+import { useRecentColors } from './recentColors'
+
+/** Chromium's EyeDropper (not in Safari/Firefox yet); typed here because lib.dom lacks it. */
+interface EyeDropperApi {
+  open(): Promise<{ sRGBHex: string }>
+}
+const eyeDropper = (): (new () => EyeDropperApi) | null =>
+  typeof window !== 'undefined' && 'EyeDropper' in window ? (window as unknown as { EyeDropper: new () => EyeDropperApi }).EyeDropper : null
 
 interface ColorFieldProps {
   label: string
@@ -15,7 +25,11 @@ interface ColorFieldProps {
   disabled?: boolean
 }
 
-/** Color picker + hex input + quick swatches. Invalid hex never reaches the config. */
+/**
+ * Color picker + hex input + eyedropper (where supported) + quick swatches + 최근 색.
+ * Invalid hex never reaches the config. A color counts as recent once it is settled: picked
+ * from a swatch or the eyedropper, the system picker closed, or a full #RRGGBB typed.
+ */
 export function ColorField({ label, value, onChange, swatches, auto, contrast, disabled }: ColorFieldProps) {
   const id = useId()
   // Text being typed; null = show the committed value.
@@ -24,11 +38,44 @@ export function ColorField({ label, value, onChange, swatches, auto, contrast, d
   const text = draft ?? value
   const ratio = contrast ? contrastRatio(value, contrast.against) : null
   const lowContrast = contrast && ratio !== null && ratio < contrast.min
+  const recent = useRecentColors((s) => s.colors)
+  const remember = useRecentColors((s) => s.remember)
+  const [dropper] = useState(eyeDropper)
+
+  // React's onChange fires on every drag step of the system picker; `change` fires once when it closes.
+  const picker = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    const el = picker.current
+    if (!el) return
+    const settled = () => remember(el.value.toLowerCase())
+    el.addEventListener('change', settled)
+    return () => el.removeEventListener('change', settled)
+  }, [remember])
+
+  const choose = (hex: HexColor) => {
+    setDraft(null)
+    onChange(hex)
+    remember(hex)
+  }
+
+  const pickFromScreen = async () => {
+    if (!dropper) return
+    try {
+      const hex = normalizeHex((await new dropper().open()).sRGBHex)
+      if (hex) choose(hex)
+    } catch {
+      // Escape or another dismissal: nothing picked.
+    }
+  }
 
   const commitText = (raw: string) => {
     setDraft(raw)
     const hex = normalizeHex(raw)
-    if (hex) onChange(hex)
+    if (!hex) return
+    onChange(hex)
+    // A full #RRGGBB is a finished color. Recording it now rather than on blur keeps the 최근
+    // row from appearing under the pointer while the click that leaves the field is landing.
+    if (/^#?[0-9a-f]{6}$/i.test(raw.trim())) remember(hex)
   }
 
   return (
@@ -51,6 +98,7 @@ export function ColorField({ label, value, onChange, swatches, auto, contrast, d
       <div className="flex min-h-12 items-center gap-3 rounded-[var(--radius-field)] bg-canvas px-3">
         <span className="relative size-7 shrink-0 overflow-hidden rounded-[9px] border border-black/10" style={{ background: value }}>
           <input
+            ref={picker}
             type="color"
             value={value}
             onChange={(e) => {
@@ -74,6 +122,9 @@ export function ColorField({ label, value, onChange, swatches, auto, contrast, d
           aria-describedby={invalid ? `${id}-err` : undefined}
           className="min-w-0 flex-1 bg-transparent text-[14px] uppercase tabular-nums text-ink outline-none"
         />
+        {dropper && (
+          <IconButton label={`${label} 화면에서 색 집기`} icon={<Pipette className="size-[18px]" />} variant="ghost" className="-mr-2" onClick={() => void pickFromScreen()} />
+        )}
       </div>
       {invalid && (
         <p id={`${id}-err`} role="alert" className="text-[12px] text-danger">
@@ -101,7 +152,7 @@ export function ColorField({ label, value, onChange, swatches, auto, contrast, d
             <button
               key={s}
               type="button"
-              onClick={() => onChange(s)}
+              onClick={() => choose(s)}
               aria-label={`${s.toUpperCase()} 선택`}
               aria-pressed={s === value}
               className={cn(
@@ -109,6 +160,22 @@ export function ColorField({ label, value, onChange, swatches, auto, contrast, d
                 s === value && 'ring-2 ring-ink ring-offset-2',
               )}
               style={{ background: s }}
+            />
+          ))}
+        </div>
+      )}
+      {recent.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={`${label} 최근 사용한 색`}>
+          <span className="mr-0.5 text-[12px] text-sub">최근</span>
+          {recent.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => choose(c)}
+              aria-label={`${c.toUpperCase()} 선택`}
+              aria-pressed={c === value}
+              className={cn('size-6 rounded-full border border-black/10 transition-shadow', c === value && 'ring-2 ring-ink ring-offset-1')}
+              style={{ background: c }}
             />
           ))}
         </div>
